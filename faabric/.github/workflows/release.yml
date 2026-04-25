@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        image: [faabric, planner]
+    steps:
+      - name: "Get the code"
+        uses: actions/checkout@v4
+      - name: "Get tag version"
+        run: echo "TAG_VERSION=${GITHUB_REF#refs/tags/v*}" >> $GITHUB_ENV
+      - name: "Print tag version"
+        run: echo ${{ env.TAG_VERSION }}
+      - name: "Set up QEMU"
+        uses: docker/setup-qemu-action@v3
+      - name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+      - name: "Log in to ACR"
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: faasm
+          password: ${{ secrets.GHCR_PAT }}
+      - name: "Build Faabric container"
+        uses: docker/build-push-action@v5.2.0
+        with:
+          push: true
+          file: docker/${{ matrix.image }}.dockerfile
+          context: .
+          tags: ghcr.io/faasm/${{ matrix.image }}:${{ env.TAG_VERSION }}
+          build-args: FAABRIC_VERSION=${{ env.TAG_VERSION }}

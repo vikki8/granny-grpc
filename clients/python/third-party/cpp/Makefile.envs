@@ -1,0 +1,36 @@
+# -----------------------------------------
+# IMPORTANT: this file is used by lots of submodules/ projects so be careful
+# **NOT** to set any global variables like CC/CXX. Keep it generic. The values
+# populating this file can be found in faasmtools/build.py
+# -----------------------------------------
+
+export WASM_SYSROOT=${FAASM_WASM_SYSROOT}
+export WASM_TOOLCHAIN_BIN=${FAASM_WASM_INSTALL_DIR}
+
+export WASM_CC=${FAASM_WASM_CC}
+export WASM_CXX=${FAASM_WASM_CXX}
+export WASM_CPP=${FAASM_WASM_CXX}
+export WASM_AR=${FAASM_WASM_AR}
+export WASM_NM=${FAASM_WASM_NM}
+export WASM_RANLIB=${FAASM_WASM_RANLIB}
+export WASM_LD=${FAASM_WASM_CC}
+export WASM_LDSHARED=${FAASM_WASM_CC}
+export WASM_LDFLAGS="${FAASM_WASM_STATIC_LINKER_FLAGS}"
+export WASM_LDFLAGS_NO_QUOTES=${FAASM_WASM_STATIC_LINKER_FLAGS}
+export WASM_EXE_LDFLAGS="${FAASM_WASM_EXE_LINKER_FLAGS}"
+export WASM_EXE_LDFLAGS_NO_QUOTES=${FAASM_WASM_EXE_LINKER_FLAGS}
+
+export WASM_BUILD=wasm32
+export WASM_HOST=${FAASM_WASM_HOST_SHARED}
+export WASM_HOST_UNKNOWN=${FAASM_WASM_HOST_UNKNOWN}
+
+export WASM_CFLAGS_NO_QUOTES=${FAASM_WASM_CFLAGS}
+export WASM_CXXFLAGS_NO_QUOTES=$(FAASM_WASM_CFLAGS)
+export WASM_CFLAGS="$(WASM_CFLAGS_NO_QUOTES)"
+export WASM_CXXFLAGS="$(WASM_CXXFLAGS_NO_QUOTES)"
+
+export WASM_SHARED_FLAGS_NO_QUOTES=${FAASM_WASM_SHARED_LINKER_FLAGS}
+export WASM_SHARED_FLAGS="$(WASM_SHARED_FLAGS_NO_QUOTES)"
+
+# Note - order very important here
+export WASM_BLAS_LIBS="${FAASM_WASM_BLAS_LIBS}"

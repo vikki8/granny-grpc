@@ -1,0 +1,35 @@
+# NOTE - as part of the docker-build task we create custom dockerignore files on the fly
+# to change things for specific builds. See the docker/ directory for these templates
+
+# CLion
+cmake-build-debug
+cmake-build-release
+.idea
+
+# Python
+venv
+venv-bm
+
+# Builds
+build
+dev
+clients
+
+# Clang
+.clangd
+.cache
+
+# Git
+.git
+
+# Misc project files
+docker
+docs
+deploy/k8s
+node_modules
+venv
+container
+
+# Benchmarking
+perf
+perf.*

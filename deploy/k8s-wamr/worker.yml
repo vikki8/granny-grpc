@@ -1,0 +1,120 @@
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: faasm-worker
+  namespace: faasm
+  labels:
+    app: faasm
+spec:
+  selector:
+    matchLabels:
+      run: faasm-worker
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        run: faasm-worker
+        role: worker
+    spec:
+      affinity:
+        # Require all worker pods to be scheduled in worker nodes
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: faasm.io/role
+                operator: In
+                values:
+                - worker
+        # If possible, give each pod a worker node in isolation
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: run
+                      operator: In
+                      values:
+                      - faasm-worker
+                topologyKey: kubernetes.io/hostname
+              weight: 100
+
+      containers:
+        - image: ghcr.io/faasm/worker:0.33.0
+          name: faasm-worker
+          ports:
+            - containerPort: 8080
+          env:
+            - name: REDIS_STATE_HOST
+              value: "redis-state"
+            - name: REDIS_QUEUE_HOST
+              value: "redis-queue"
+            - name: PLANNER_HOST
+              value: "planner"
+            - name: PLANNER_PORT
+              value: "8081"
+            - name: LOG_LEVEL
+              value: "info"
+            - name: CAPTURE_STDOUT
+              value: "off"
+            - name: CGROUP_MODE
+              value: "off"
+            - name: NETNS_MODE
+              value: "off"
+            - name: MAX_NET_NAMESPACES
+              value: "100"
+            - name: PYTHON_PRELOAD
+              value: "off"
+            - name: PYTHON_CODEGEN
+              value: "off"
+            - name: BOUND_TIMEOUT
+              value: "600000"
+            - name: GLOBAL_MESSAGE_TIMEOUT
+              value: "700000"
+            - name: ENDPOINT_INTERFACE
+              value: "eth0"
+            - name: FAASM_WASM_VM
+              value: "wamr"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: faasm
+spec:
+  ports:
+    # Given that the planner and the worker are in different pods, we need to
+    # list all the ports we use for RPCs. These are the function call port,
+    # the snapshot port, the PTP port, and the planner port (all in their sync
+    # and async versions). See faabric/include/faabric/transport/common.h for
+    # the full list
+    - name: function-call-async
+      port: 8005
+      targetPort: 8005
+    - name: function-call-sync
+      port: 8006
+      targetPort: 8006
+    - name: snapshot-async
+      port: 8007
+      targetPort: 8007
+    - name: snapshot-sync
+      port: 8008
+      targetPort: 8008
+    - name: ptp-async
+      port: 8009
+      targetPort: 8009
+    - name: ptp-sync
+      port: 8010
+      targetPort: 8010
+    - name: planner-async
+      port: 8011
+      targetPort: 8011
+    - name: planner-sync
+      port: 8012
+      targetPort: 8012
+  selector:
+    role: worker

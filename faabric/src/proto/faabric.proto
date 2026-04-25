@@ -1,0 +1,242 @@
+syntax = "proto3";
+
+package faabric;
+
+// ---------------------------------------------
+// UTIL MESSAGES
+// ---------------------------------------------
+
+message EmptyResponse {
+    int32 empty = 1;
+}
+
+message EmptyRequest {
+    int32 empty = 1;
+}
+
+// ---------------------------------------------
+// FUNCTION SCHEDULING
+// ---------------------------------------------
+
+message BatchExecuteRequest {
+    // Each BatchExecuteRequest has a unique app id
+    int32 appId = 1;
+
+    // The group id may change during a migration
+    int32 groupId = 2;
+
+    // All messages in a BER have the same user/function
+    string user = 3;
+    string function = 4;
+
+    enum BatchExecuteType {
+        FUNCTIONS = 0;
+        THREADS = 1;
+        PROCESSES = 2;
+        MIGRATION = 3;
+    }
+
+    BatchExecuteType type = 5;
+
+    // Shared snapshot used for threads
+    string snapshotKey = 6;
+
+    repeated Message messages = 7;
+
+    // Arbitrary context for this batch
+    int32 subType = 8;
+    bytes contextData = 9;
+
+    // Flag set by the scheduler when this batch is all executing on a single
+    // host
+    bool singleHost = 10;
+
+    // Hint set by the user to hint that this execution should all be in a
+    // single host
+    bool singleHostHint = 11;
+
+    // Hint set by the user to make scale-up requests elastic
+    bool elasticScaleHint = 12;
+}
+
+message BatchExecuteRequestStatus {
+    // Each BatchExecuteRequest has a unique app id
+    int32 appId = 1;
+
+    bool finished = 2;
+
+    repeated Message messageResults = 3;
+
+    // Batches can dynamically change size throughout execution. This parameter
+    // is a hint provided by the client letting faabric know how many message
+    // results we expect for this BER
+    int32 expectedNumMessages = 4;
+}
+
+message HostResources {
+    int32 slots = 1;
+    int32 usedSlots = 2;
+}
+
+message FunctionStatusResponse {
+    enum FunctionStatus {
+        OK = 0;
+        ERROR = 1;
+    }
+    FunctionStatus status = 1;
+}
+
+message Message {
+    int32 id = 1;
+    // The app id indicates which BatchExecuteRequest this message belongs to.
+    // Each BER has a unique app id
+    int32 appId = 2;
+    int32 appIdx = 3;
+    string mainHost = 4;
+
+    enum MessageType {
+        CALL = 0;
+        KILL = 1;
+        EMPTY = 2;
+        FLUSH = 3;
+    }
+
+    MessageType type = 5;
+    string user = 6;
+    string function = 7;
+
+    bytes inputData = 8 [json_name = "input_data"];
+    string outputData = 9 [json_name = "output_data"];
+
+    int32 funcPtr = 10;
+    int32 returnValue = 11;
+
+    string snapshotKey = 12;
+
+    int64 startTimestamp = 14 [json_name = "start_ts"];
+    string resultKey = 15;
+    bool executesLocally = 16;
+    string statusKey = 17;
+
+    string executedHost = 18;
+    int64 finishTimestamp = 19 [json_name = "finish_ts"];
+
+    bool isPython = 21 [json_name = "python"];
+
+    string pythonUser = 24 [json_name = "py_user"];
+    string pythonFunction = 25 [json_name = "py_func"];
+    string pythonEntry = 26;
+
+    // Function groups
+    int32 groupId = 27;
+    int32 groupIdx = 28;
+    int32 groupSize = 29;
+
+    // MPI
+    bool isMpi = 30 [json_name = "mpi"];
+    int32 mpiWorldId = 31;
+    int32 mpiRank = 32;
+    int32 mpiWorldSize = 33 [json_name = "mpi_world_size"];
+
+    string cmdline = 34;
+
+    // Exec-graph utils
+    bool recordExecGraph = 35 [json_name = "record_exec_graph"];
+    repeated int32 chainedMsgIds = 36;
+    map<string, int32> intExecGraphDetails = 37;
+    map<string, string> execGraphDetails = 38;
+
+    // OpenMP
+    bool isOmp = 39;
+    int32 ompNumThreads = 40;
+}
+
+// ---------------------------------------------
+// STATE SERVICE
+// ---------------------------------------------
+
+message StateRequest {
+    string user = 1;
+    string key = 2;
+    bytes data = 3;
+}
+
+message StateChunkRequest {
+    string user = 1;
+    string key = 2;
+    uint64 offset = 3;
+    uint64 chunkSize = 4;
+}
+
+message StateResponse {
+    string user = 1;
+    string key = 2;
+    bytes data = 3;
+}
+
+message StatePart {
+    string user = 1;
+    string key = 2;
+    uint64 offset = 3;
+    bytes data = 4;
+}
+
+message StateSizeResponse {
+    string user = 1;
+    string key = 2;
+    uint64 stateSize = 3;
+}
+
+message StateAppendedRequest {
+    string user = 1;
+    string key = 2;
+    uint32 nValues = 3;
+}
+
+message StateAppendedResponse {
+    message AppendedValue {
+        bytes data = 2;
+    }
+    string user = 1;
+    string key = 2;
+    repeated AppendedValue values = 3;
+}
+
+// ---------------------------------------------
+// POINT-TO-POINT
+// ---------------------------------------------
+
+message PointToPointMessage {
+    int32 appId = 1;
+    int32 groupId = 2;
+    int32 sendIdx = 3;
+    int32 recvIdx = 4;
+    bytes data = 5;
+}
+
+message PointToPointMappings {
+    int32 appId = 1;
+    int32 groupId = 2;
+
+    message PointToPointMapping {
+        string host = 1;
+        int32 messageId = 2;
+        int32 appIdx = 3;
+        int32 groupIdx = 4;
+        int32 mpiPort = 5;
+    }
+
+    repeated PointToPointMapping mappings = 3;
+}
+
+// ---------------------------------------------
+// FUNCTION MIGRATIONS
+// ---------------------------------------------
+
+message PendingMigration {
+    int32 appId = 1;
+    int32 groupId = 2;
+    int32 groupIdx = 3;
+    string srcHost = 4;
+    string dstHost = 5;
+}

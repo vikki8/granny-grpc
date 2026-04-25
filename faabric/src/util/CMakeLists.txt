@@ -1,0 +1,32 @@
+
+faabric_lib(util
+    ExecGraph.cpp
+    PeriodicBackgroundThread.cpp
+    barrier.cpp
+    batch.cpp
+    bytes.cpp
+    config.cpp
+    clock.cpp
+    crash.cpp
+    delta.cpp
+    dirty.cpp
+    environment.cpp
+    files.cpp
+    func.cpp
+    gids.cpp
+    hwloc.cpp
+    json.cpp
+    latch.cpp
+    locks.cpp
+    logging.cpp
+    memory.cpp
+    network.cpp
+    ptp.cpp
+    queue.cpp
+    random.cpp
+    snapshot.cpp
+    state.cpp
+    string_tools.cpp
+    timing.cpp
+    testing.cpp
+)

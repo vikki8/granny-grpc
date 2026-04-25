@@ -1,0 +1,153 @@
+syntax = "proto3";
+
+package faabric.planner;
+
+// ---------------------------------------------
+// Util Messages
+// ---------------------------------------------
+
+message EmptyResponse {
+    int32 empty = 1;
+}
+
+message EmptyRequest {
+    int32 empty = 1;
+}
+
+message ResponseStatus {
+    enum Status {
+        OK = 0;
+        ERROR = 1;
+    }
+
+    Status status = 1;
+}
+
+message Timestamp {
+    int64 epochMs = 1;
+}
+
+// ---------------------------------------------
+// Endpoint Messages
+// ---------------------------------------------
+
+message HttpMessage {
+    enum Type {
+        NO_TYPE = 0;
+        RESET = 1;
+        FLUSH_AVAILABLE_HOSTS = 2;
+        FLUSH_EXECUTORS = 3;
+        FLUSH_SCHEDULING_STATE = 4;
+        GET_AVAILABLE_HOSTS = 5;
+        GET_CONFIG = 6;
+        GET_EXEC_GRAPH = 7;
+        GET_IN_FLIGHT_APPS = 8;
+        EXECUTE_BATCH = 10;
+        EXECUTE_BATCH_STATUS = 11;
+        PRELOAD_SCHEDULING_DECISION = 12;
+        SET_POLICY = 13;
+        GET_POLICY = 14;
+        // This endpoint is only used with the SPOT planner policy. In a real
+        // deployment we would get this value from a cloud-provider-specific
+        // API
+        SET_NEXT_EVICTED_VM = 15;
+    }
+
+    Type type = 1 [json_name = "http_type"];
+    // Payload parameter to populate with the message body if necessary. The
+    // body is only needed for:
+    // - GET_EXEC_GRAPH: where the body is a faabric::Message
+    // - EXECUTE_BATCH: where the body is a faabric::BatchExecuteRequest
+    // - EXECUTE_BATCH_STATUS: where the body is a BER too
+    // - PRELOAD_SCHEDULING_DECISION: where the body is a
+    //     faabric::BatchExecuteRequest
+    // - SET_POLICY: where the body is a string with the new planner policy
+    string payloadJson = 2 [json_name = "payload"];
+}
+
+message GetInFlightAppsResponse {
+    message InFlightApp {
+        int32 appId = 1;
+        int32 subType = 2;
+        int32 size = 3;
+        repeated string hostIps = 4;
+    }
+
+    message FrozenApp {
+        int32 appId = 1;
+        int32 subType = 2;
+        int32 size = 3;
+    }
+
+    repeated InFlightApp apps = 1;
+
+    // Auxiliary fields to visualise the state of the cluster
+    int32 numMigrations = 2;
+    repeated string nextEvictedVmIps = 3;
+    repeated FrozenApp frozenApps = 4;
+}
+
+message NumMigrationsResponse {
+    int32 numMigrations = 1;
+}
+
+// ---------------------------------------------
+// State/Config Messages
+// ---------------------------------------------
+
+message PlannerConfig {
+    string ip = 1;
+    // Host keep-alive timeout in seconds
+    int32 hostTimeout = 2;
+    int32 numThreadsHttpServer = 3;
+}
+
+// ---------------------------------------------
+// Host Membership RPC Messages
+// ---------------------------------------------
+
+message Host {
+    string ip = 1;
+    int32 slots = 2;
+    int32 usedSlots = 3;
+    // Host register timestamp as epoch time in ms
+    Timestamp registerTs = 4;
+
+    message MpiPort {
+        int32 port = 1;
+        bool used = 2;
+    }
+
+    repeated MpiPort mpiPorts = 5;
+}
+
+message PingResponse {
+    PlannerConfig config = 1;
+}
+
+message RegisterHostRequest {
+    Host host = 1;
+    bool overwrite = 2;
+}
+
+message RegisterHostResponse {
+    ResponseStatus status = 1;
+    PlannerConfig config = 2;
+    int32 hostId = 3;
+}
+
+message RemoveHostRequest {
+    Host host = 1;
+}
+
+message RemoveHostResponse {
+    ResponseStatus status = 1;
+}
+
+message AvailableHostsResponse {
+    repeated Host hosts = 1;
+}
+
+message SetEvictedVmIpsRequest {
+    repeated string vmIps = 1;
+}

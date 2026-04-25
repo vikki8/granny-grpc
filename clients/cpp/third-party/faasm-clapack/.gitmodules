@@ -1,0 +1,4 @@
+[submodule "third-party/lapack"]
+	path = third-party/lapack
+    url = https://github.com/faasm/lapack
+    branch = faasm

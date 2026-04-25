@@ -1,0 +1,215 @@
+services:
+  redis-state:
+    image: ghcr.io/faasm/redis:${FAASM_VERSION}
+
+  redis-queue:
+    image: ghcr.io/faasm/redis:${FAASM_VERSION}
+
+  planner:
+    image: ${FAABRIC_PLANNER_IMAGE}
+    # Pass the build dir as argument to the entrypoint, so that the binaries
+    # are correctly mounted. In general we prefer to use the binaries built
+    # by faasm (in FAASM_BUILD_MOUNT) but occasionally, e.g. when deploying
+    # a dettached cluster, we need to use the binaries within the docker image.
+    # So we allow overwritting the binary path
+    command: ${PLANNER_BUILD_MOUNT:-${FAASM_BUILD_MOUNT}}/bin
+    ports:
+      - "${PLANNER_HOST_PORT}:${PLANNER_DOCKER_PORT}"
+    volumes:
+      - ${FAASM_BUILD_DIR}:${FAASM_BUILD_MOUNT}
+    environment:
+      - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
+      - PLANNER_PORT=${PLANNER_DOCKER_PORT}
+
+  minio:
+    image: ghcr.io/faasm/minio:${FAASM_VERSION}
+    ports:
+      - "${MINIO_HOST_PORT}:${MINIO_DOCKER_PORT}"
+    environment:
+      MINIO_ROOT_USER: minio
+      MINIO_ROOT_PASSWORD: minio123
+    volumes:
+      - ./dev/minio/data:/data/minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  upload:
+    image: ghcr.io/faasm/upload:${FAASM_VERSION}
+    ports:
+      - "${UPLOAD_HOST_PORT}:${UPLOAD_DOCKER_PORT}"
+    expose:
+      - "5000"
+    depends_on:
+      - redis-queue
+      - redis-state
+      - planner
+      - minio
+    restart: on-failure
+    volumes:
+      - ./:${FAASM_CODE_MOUNT}
+      - ${FAASM_BUILD_DIR}:${FAASM_BUILD_MOUNT}
+      - ./dev/faasm-local/wasm/:${FAASM_LOCAL_MOUNT}/wasm
+      - ./dev/faasm-local/object/:${FAASM_LOCAL_MOUNT}/object
+    environment:
+      - DEPLOYMENT_TYPE=${FAASM_DEPLOYMENT_TYPE:-compose}
+      - LOG_LEVEL=${FAASM_LOG_LEVEL:-info}
+      - PLANNER_HOST=planner
+      - PLANNER_PORT=${PLANNER_DOCKER_PORT}
+      - PYTHON_CODEGEN=${PYTHON_CODEGEN:-off}
+      - REDIS_QUEUE_HOST=redis-queue
+      - REDIS_STATE_HOST=redis-state
+      - LD_LIBRARY_PATH=/usr/local/lib
+      - FAASM_WASM_VM=${FAASM_WASM_VM:-wamr}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Distributed worker, used for executing as a local cluster
+  worker:
+    image: ${FAASM_WORKER_IMAGE}
+    depends_on:
+      - planner
+      - upload
+    expose:
+      - "5000"
+    privileged: true
+    volumes:
+      - ./:${FAASM_CODE_MOUNT}
+      - ${FAASM_BUILD_DIR}:${FAASM_BUILD_MOUNT}
+      - ./dev/faasm-local/:${FAASM_LOCAL_MOUNT}
+      - aesmd-socket:/var/run/aesmd
+      - ${SGX_DEVICE_MOUNT_DIR:-./dev/faasm-local/sgx}:/dev/sgx
+    environment:
+      - ATTESTATION_SERVICE_URL=${FAASM_ATTESTATION_SERVICE_URL:-https://localhost:8443}
+      - CAPTURE_STDOUT=${FAASM_CAPTURE_STDOUT:-off}
+      - CGROUP_MODE=on
+      - DEPLOYMENT_TYPE=${FAASM_DEPLOYMENT_TYPE:-compose}
+      - FAASM_WASM_VM=${FAASM_WASM_VM:-wamr}
+      - GLOBAL_MESSAGE_TIMEOUT=600000
+      - LD_LIBRARY_PATH=/usr/local/lib
+      - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
+      - MAX_NET_NAMESPACES=100
+      - NETNS_MODE=off
+      - OVERRIDE_CPU_COUNT=${FAASM_OVERRIDE_CPU_COUNT:-8}
+      - PLANNER_HOST=planner
+      - PLANNER_PORT=${PLANNER_DOCKER_PORT}
+      - REDIS_QUEUE_HOST=redis-queue
+      - REDIS_STATE_HOST=redis-state
+      - SGX_AESM_ADDR=1
+      - ACCLESS_ENABLED=${FAASM_ACCLESS_ENABLED:-on}
+
+  # C/C++ functions
+  cpp:
+    image: ${CPP_CLI_IMAGE}
+    working_dir: /code/cpp
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./clients/cpp:/code/cpp
+      - ./dev/faasm-local/:${FAASM_LOCAL_MOUNT}
+
+  # Python functions
+  python:
+    image: ${PYTHON_CLI_IMAGE}
+    working_dir: /code/python
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./clients/python:/code/python
+      - ./dev/faasm-local/:${FAASM_LOCAL_MOUNT}
+
+  # Faasm dev
+  faasm-cli:
+    image: ${FAASM_CLI_IMAGE}
+    working_dir: /usr/local/code/faasm
+    stdin_open: true
+    tty: true
+    privileged: true
+    depends_on:
+      - redis-state
+      - redis-queue
+      - planner
+      - minio
+    environment:
+      - ATTESTATION_SERVICE_URL=${FAASM_ATTESTATION_SERVICE_URL}
+      - AZDCAP_DEBUG_LOG_LEVEL=info
+      - DEPLOYMENT_TYPE=${FAASM_DEPLOYMENT_TYPE:-compose}
+      - FAASM_WASM_VM=${FAASM_WASM_VM:-wamr}
+      - LD_LIBRARY_PATH=/usr/local/lib
+      - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
+      - PLANNER_HOST=planner
+      - PLANNER_PORT=${PLANNER_DOCKER_PORT}
+      - REDIS_QUEUE_HOST=redis-queue
+      - REDIS_STATE_HOST=redis-state
+      - SGX_AESM_ADDR=1
+      - UPLOAD_HOST=${UPLOAD_HOST:-upload}
+    volumes:
+      - ./:${FAASM_CODE_MOUNT}
+      - ${FAASM_BUILD_DIR}:${FAASM_BUILD_MOUNT}
+      - ./dev/faasm-local/:${FAASM_LOCAL_MOUNT}
+      - ${CONAN_CACHE_MOUNT_SOURCE}:${FAASM_CONAN_MOUNT}
+      - aesmd-socket:/var/run/aesmd
+      - ${SGX_DEVICE_MOUNT_DIR:-./dev/faasm-local/sgx}:/dev/sgx
+
+  # SGX AESM service to mock the remote attestation environment in production
+  # There is no need to re-create the image every time, as it does not depend
+  # on Faasm's code
+  aesmd:
+    image: ghcr.io/faasm/sgx-aesmd:0.9.5
+    devices:
+      - ${SGX_DEVICE_MOUNT_DIR:-./dev/faasm-local/sgx}/enclave
+      - ${SGX_DEVICE_MOUNT_DIR:-./dev/faasm-local/sgx}/provision
+    environment:
+      - AZDCAP_DEBUG_LOG_LEVEL=info
+    volumes:
+      - aesmd-socket:/var/run/aesmd
+    stdin_open: true
+    tty: true
+
+  # Distributed tests server
+  dist-test-server:
+    image: ${FAASM_CLI_IMAGE}
+    working_dir: /build/faasm
+    depends_on:
+      - redis-queue
+      - redis-state
+      - planner
+      - minio
+      - upload
+    environment:
+      - BOUND_TIMEOUT=60000
+      - CGROUP_MODE=off
+      - DEPLOYMENT_TYPE=${FAASM_DEPLOYMENT_TYPE:-compose}
+      - FAASM_WASM_VM=${FAASM_WASM_VM:-wamr}
+      - GLOBAL_MESSAGE_TIMEOUT=120000
+      - LD_LIBRARY_PATH=/usr/local/lib
+      - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
+      - OVERRIDE_CPU_COUNT=${FAASM_OVERRIDE_CPU_COUNT:-4}
+      - PLANNER_HOST=planner
+      - PLANNER_PORT=${PLANNER_DOCKER_PORT}
+      - REDIS_QUEUE_HOST=redis-queue
+      - REDIS_STATE_HOST=redis-state
+    command: ./bin/dist_test_server
+    volumes:
+      - ./:/usr/local/code/faasm/
+      - ${FAASM_BUILD_DIR}:${FAASM_BUILD_MOUNT}
+
+  # Profiling/ perf testing
+  vector:
+    image: netflixoss/vector:latest
+    depends_on:
+      - faasm-cli
+    ports:
+      - "80:80"
+
+# This volume is only needed when running SGX in hardware mode, in an
+# SGX-enabled machine. It enables communication between the AESMD container
+# and the SGX-enabled client or worker. It is needed for remote attestation.
+volumes:
+  aesmd-socket:
+    external: ${AESMD_SOCKET_EXTERNAL_VOLUME:-false}

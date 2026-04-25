@@ -1,0 +1,12 @@
+*.a
+*.o
+*.so
+
+third-party/clapack/INSTALL/testdlamch
+third-party/clapack/INSTALL/testdsecnd
+third-party/clapack/INSTALL/testieee
+third-party/clapack/INSTALL/testlsame
+third-party/clapack/INSTALL/testsecond
+third-party/clapack/INSTALL/testslamch
+third-party/clapack/INSTALL/testversion
+

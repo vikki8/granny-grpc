@@ -1,0 +1,61 @@
+services:
+  redis:
+    image: redis
+
+  planner:
+    image: ghcr.io/faasm/planner:${FAABRIC_VERSION}
+    # The planner entrypoint supports changing the location of the
+    # planner_server binary. If the binary is not found, it will wait until
+    # it is built
+    command: ${PLANNER_ENTRYPOINT_BINARY:-/build/faabric/static/bin}
+    volumes:
+      - ./:/code/faabric
+      - ./build:/build/faabric
+    environment:
+      - LOG_LEVEL=debug
+
+  cli:
+    image: ${FAABRIC_CLI_IMAGE}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - ./:/code/faabric
+      - ./build:/build/faabric
+      - ${CONAN_CACHE_MOUNT_SOURCE}:/root/.conan
+    working_dir: /code/faabric
+    stdin_open: true
+    tty: true
+    privileged: true
+    environment:
+      - DEPLOYMENT_TYPE=${FAABRIC_DEPLOYMENT_TYPE:-compose}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+      - PLANNER_HOST=planner
+      - PLANNER_PORT=8080
+      - POINT_TO_POINT_SERVER_THREADS=2
+      - REDIS_STATE_HOST=redis
+      - REDIS_QUEUE_HOST=redis
+      - OVERRIDE_CPU_COUNT=${OVERRIDE_CPU_COUNT:-0}
+    depends_on:
+      - planner
+      - redis
+
+  dist-test-server:
+    image: ${FAABRIC_CLI_IMAGE}
+    volumes:
+      - ./:/code/faabric
+      - ./build:/build/faabric
+      - ./conan-cache/:/root/.conan
+    working_dir: /build/faabric/static
+    environment:
+      - DEPLOYMENT_TYPE=${FAABRIC_DEPLOYMENT_TYPE:-compose}
+      - LOG_LEVEL=debug
+      - PLANNER_HOST=planner
+      - PLANNER_PORT=8080
+      - POINT_TO_POINT_SERVER_THREADS=2
+      - REDIS_STATE_HOST=redis
+      - REDIS_QUEUE_HOST=redis
+      - OVERRIDE_CPU_COUNT=${OVERRIDE_CPU_COUNT:-0}
+    command: ./bin/faabric_dist_test_server
+    depends_on:
+      - planner
+      - redis

@@ -1,0 +1,56 @@
+# State
+__faasm_push_state
+__faasm_push_state_partial
+__faasm_push_state_partial_mask
+__faasm_pull_state
+__faasm_read_state
+__faasm_read_state_ptr
+__faasm_write_state
+__faasm_append_state
+__faasm_read_appended_state
+__faasm_clear_appended_state
+__faasm_write_state_offset
+__faasm_write_state_from_file
+__faasm_flag_state_dirty
+__faasm_flag_state_offset_dirty
+__faasm_read_state_offset
+__faasm_read_state_offset_ptr
+__faasm_lock_state_read
+__faasm_unlock_state_read
+__faasm_lock_state_write
+__faasm_unlock_state_write
+
+# Functions
+__faasm_read_input
+__faasm_write_output
+__faasm_chain_name
+__faasm_chain_ptr
+__faasm_await_call
+__faasm_await_call_output
+__faasm_get_py_user
+__faasm_get_py_func
+__faasm_get_py_entry
+__faasm_chain_py
+__faasm_conf_flag
+__faasm_backtrace
+
+# Shared mem
+__faasm_sm_reduce
+__faasm_sm_critical_local
+__faasm_sm_critical_local_end
+
+# Migration
+__faasm_migrate_point
+
+# S3
+__faasm_s3_get_num_buckets
+__faasm_s3_list_buckets
+__faasm_s3_get_num_keys
+__faasm_s3_get_num_keys_with_prefix
+__faasm_s3_list_keys
+__faasm_s3_list_keys_with_prefix
+__faasm_s3_add_key_bytes
+__faasm_s3_get_key_bytes
+
+# Test
+__faasm_host_interface_test

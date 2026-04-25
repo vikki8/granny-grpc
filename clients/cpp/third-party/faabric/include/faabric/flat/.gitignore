@@ -1,0 +1,3 @@
+# Flatbuffers output
+*.fb.h
+faabric_generated.h

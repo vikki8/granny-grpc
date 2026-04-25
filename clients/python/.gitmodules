@@ -1,0 +1,11 @@
+[submodule "third-party/cpython"]
+    path = third-party/cpython
+    url = https://github.com/faasm/cpython
+    branch = faasm
+[submodule "third-party/crossenv"]
+    path = third-party/crossenv
+    url = https://github.com/faasm/crossenv
+    branch = faasm
+[submodule "third-party/cpp"]
+    path = third-party/cpp
+    url = https://github.com/faasm/cpp

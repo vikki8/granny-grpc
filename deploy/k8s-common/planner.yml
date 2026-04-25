@@ -1,0 +1,75 @@
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: planner
+  namespace: faasm
+  labels:
+    app: faasm
+    role: planner
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: faasm.io/role
+            operator: In
+            values:
+            - control
+  containers:
+    - name: planner
+      image: ghcr.io/faasm/planner:0.22.0
+      ports:
+        - containerPort: 8081
+      env:
+        - name: LOG_LEVEL
+          value: "info"
+        - name: PLANNER_PORT
+          value: "8081"
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: planner
+  namespace: faasm
+spec:
+  ports:
+    # HTTP endpoint ports
+    - name: http-endpoint
+      port: 8081
+      targetPort: 8081
+    # Given that the planner and the worker are in different pods, we need to
+    # list all the ports we use for RPCs. These are the function call port,
+    # the snapshot port, the PTP port, and the planner port (all in their sync
+    # and async versions). See faabric/include/faabric/transport/common.h for
+    # the full list
+    - name: function-call-async
+      port: 8005
+      targetPort: 8005
+    - name: function-call-sync
+      port: 8006
+      targetPort: 8006
+    - name: snapshot-async
+      port: 8007
+      targetPort: 8007
+    - name: snapshot-sync
+      port: 8008
+      targetPort: 8008
+    - name: ptp-async
+      port: 8009
+      targetPort: 8009
+    - name: ptp-sync
+      port: 8010
+      targetPort: 8010
+    - name: planner-async
+      port: 8011
+      targetPort: 8011
+    - name: planner-sync
+      port: 8012
+      targetPort: 8012
+  selector:
+    role: planner

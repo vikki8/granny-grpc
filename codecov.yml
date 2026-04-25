@@ -1,0 +1,18 @@
+ignore:
+    # Exclude faabric from the code-coverage measures
+    - "faabric"
+    # We exclude the tests from the coverage results
+    - "tests"
+
+# Don't report actions as failed unless there's more than a 1% decrease in
+# coverage
+coverage:
+  status:
+    # Project coverage indicates project-wide code coverage
+    project:
+      default:
+        threshold: 1%
+    # Patch coverage indicates code coverage of the lines added in this PR
+    patch:
+      default:
+        threshold: 1%

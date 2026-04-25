@@ -1,0 +1,37 @@
+table SnapshotMergeRegionRequest {
+  offset:int;
+  length:ulong;
+  data_type:int;
+  merge_op:int;
+}
+
+table SnapshotPushRequest {
+  key:string;
+  max_size:ulong;
+  contents:[ubyte];
+  merge_regions:[SnapshotMergeRegionRequest];
+}
+
+table SnapshotDeleteRequest {
+  key:string;
+}
+
+table SnapshotDiffRequest {
+  offset:int;
+  data_type:int;
+  merge_op:int;
+  data:[ubyte];
+}
+
+table SnapshotUpdateRequest {
+  key:string;
+  merge_regions:[SnapshotMergeRegionRequest];
+  diffs:[SnapshotDiffRequest];
+}
+
+table ThreadResultRequest {
+  message_id:int;
+  return_value:int;
+  key:string;
+  diffs:[SnapshotDiffRequest];
+}

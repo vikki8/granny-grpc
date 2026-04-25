@@ -1,0 +1,61 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# Cancel previous running actions for the same PR
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  checks:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/faasm/cpp-sysroot:0.6.0
+    steps:
+      # --- Update code ---
+      - name: "Checkout code"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      # See actions/checkout#766
+      - name: "Set the GH workspace as a safe git directory"
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      # --- Build libraries to wasm ---
+      - name: "Build libfaasm"
+        run: ./bin/inv_wrapper.sh libfaasm
+      - name: "Build libfaasm with threads support"
+        run: ./bin/inv_wrapper.sh libfaasm --threads
+      - name: "Build libfaasmp"
+        run: ./bin/inv_wrapper.sh libfaasmp
+      - name: "Build libfaasmpi"
+        run: ./bin/inv_wrapper.sh libfaasmpi
+      - name: "Build libffi"
+        run: ./bin/inv_wrapper.sh libffi
+      - name: "Build libfake"
+        run: ./bin/inv_wrapper.sh libfake
+      - name: "Build libemscripten"
+        run: ./bin/inv_wrapper.sh libemscripten
+      - name: "Build libemscripten with threads support"
+        run: ./bin/inv_wrapper.sh libemscripten --threads
+      - name: "Build zlib"
+        run: ./bin/inv_wrapper.sh zlib
+      # --- Build functions to wasm ---
+      - name: "Build the functions"
+        run: ./bin/inv_wrapper.sh func.local --clean
+      # --- Build libraries natively ---
+      - name: "Build libfaasm native"
+        run: ./bin/inv_wrapper.sh libfaasm --native --clean
+      - name: "Build libfaasmp native"
+        run: ./bin/inv_wrapper.sh libfaasmp --native --clean
+      - name: "Build libfaasmpi native"
+        run: ./bin/inv_wrapper.sh libfaasmpi --native --clean
+      # --- Formatting ---
+      - name: "Format code"
+        run: ./bin/inv_wrapper.sh format-code --check

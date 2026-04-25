@@ -1,0 +1,270 @@
+enclave{
+    include "/usr/local/code/faasm/include/enclave/error.h"
+    include "wasm_export.h"
+    include "sgx_report.h"
+
+    from "sgx_tstdc.edl" import *;
+    from "sgx_pthread.edl" import *;
+    from "sgx_wamr.edl" import *;
+
+    trusted{
+        public faasm_sgx_status_t ecallCreateReport(
+            [in]    const sgx_target_info_t* qeTarget,
+            [in]    const sgx_report_data_t* heldData,
+            [out]   sgx_report_t* report);
+
+        public faasm_sgx_status_t ecallInitWamr();
+
+        public faasm_sgx_status_t ecallReset();
+
+        public faasm_sgx_status_t ecallDoBindToFunction(
+            [in, string]                const char* user,
+            [in, string]                const char* func,
+            [in, size=wasmBytesSize]    void *wasmBytes,
+                                        uint32_t wasmBytesSize,
+                                        bool enableTless
+        );
+
+        public faasm_sgx_status_t ecallCallFunction(
+                                uint32_t faasletId,
+                                uint32_t argc,
+            [in, count=argc]    char** argv
+        );
+
+        public faasm_sgx_status_t ecallDestroyModule(
+            uint32_t faasletId
+        );
+
+        // ECall in buffers are allocated in the enclave's heap, whereas
+        // OCall out buffers are allocated in the untrusted application's stack.
+        // As a consequence, if we need to transfer large amounts of data into
+        // the enclave, we need to use an ECall, and not a pointer in an OCall.
+        public faasm_sgx_status_t ecallCopyDataIn(
+            [in, size=bufferSize]       uint8_t* buffer,
+                                        uint32_t bufferSize,
+            [in, size=auxBufferSize]    uint8_t* auxBuffer,
+                                        uint32_t auxBufferSize
+        );
+
+        public faasm_sgx_status_t ecallRunInternalTest(
+            [in, string]    const char* testCase
+        );
+    };
+
+    untrusted{
+        void ocallLogError([in, string] const char* msg);
+
+        void ocallLogDebug([in, string] const char* msg);
+
+        // We need separate OCalls because WAMR's native logging adds
+        // newlines, which makes the output through the spdlog-based OCalls
+        // unreadable
+        int ocallLogWamr([in, string] const char* msg);
+
+        int ocallFaasmReadInput(
+            [in, out, size=bufferSize]  uint8_t* buffer,
+                                        unsigned int bufferSize
+        );
+
+        void ocallFaasmWriteOutput(
+            [in, size=outputSize]   char* output,
+                                    unsigned int outputSize
+        );
+
+        unsigned int ocallFaasmChainName(
+            [in, string]            const char* name,
+            [in, size=inputSize]    uint8_t* input,
+                                    long inputSize
+        ) allow(ecallDoBindToFunction);
+
+        unsigned int ocallFaasmChainPtr(
+                                    int wasmFuncPtr,
+            [in, size=inputSize]    uint8_t* input,
+                                    long inputSize
+        );
+
+        unsigned int ocallFaasmAwaitCall(unsigned int callId);
+
+        unsigned int ocallFaasmAwaitCallOutput(
+                                    unsigned int callId,
+            [out, size=bufferSize]  char* buffer,
+                                    unsigned int bufferSize
+        );
+
+        int32_t ocallSbrk(int32_t increment);
+
+        // ----- WASI Filesystem Calls -----
+
+        int32_t ocallWasiFdDup(int32_t fd);
+
+        int32_t ocallWasiFdFdstatGet(
+                    int32_t fd,
+            [out]   uint8_t* wasiFileType,
+            [out]   uint64_t* rightsBase,
+            [out]   uint64_t* rightsInheriting
+        );
+
+        int32_t ocallWasiFdFilestatGet(
+                    int32_t fd,
+            [out]   uint8_t* wasiFiletype,
+            [out]   uint64_t* st_dev,
+            [out]   uint64_t* st_ino,
+            [out]   uint64_t* st_nlink,
+            [out]   uint64_t* st_size,
+            [out]   uint64_t* st_atim,
+            [out]   uint64_t* st_mtim,
+            [out]   uint64_t* st_ctim
+        );
+
+        int32_t ocallWasiFdPrestatDirName(
+                                    int32_t fd,
+            [out, size=pathLen]     char* path,
+                                    int32_t pathLen
+        );
+
+        int32_t ocallWasiFdPrestatGet(
+                    int32_t fd,
+            [out]   uint8_t* prType,
+            [out]   uint32_t* nameLen
+        );
+
+        int32_t ocallWasiFdRead(
+                                            int32_t fd,
+            [in, out, count=ioVecBasesSize] uint8_t* ioVecBases, // out?
+                                            int32_t ioVecBasesSize,
+            [in, out, count=ioVecCount]     int32_t* ioVecOffsets, // in?
+                                            int32_t ioVecCount,
+            [out]                           int32_t* bytesRead
+        );
+
+        int32_t ocallWasiFdReadDir(
+                                    int32_t wasmFd,
+            [in, out, size=bufLen]  char* buf,
+                                    int32_t bufLen,
+                                    int64_t startCookie,
+            [out]                   int32_t* resSizePtr
+        );
+
+        int32_t ocallWasiFdSeek(
+                    int32_t fd,
+                    int64_t offset,
+                    int32_t whence,
+            [out]   uint64_t* newOffset
+        );
+
+        int32_t ocallWasiFdWrite(
+                                        int32_t fd,
+            [in, count=ioVecBasesSize]  uint8_t* ioVecBases,
+                                        int32_t ioVecBasesSize,
+            [in, count=ioVecCount]      int32_t* ioVecOffsets,
+                                        int32_t ioVecCount,
+            [out]                       int32_t* bytesWritten
+        );
+
+        int32_t ocallWasiPathFilestatGet(
+                                int32_t fd,
+            [in, size=pathLen]  char* path,
+                                int32_t pathLen,
+            [out]               uint8_t* wasiFiletype,
+            [out]               uint64_t* st_dev,
+            [out]               uint64_t* st_ino,
+            [out]               uint64_t* st_nlink,
+            [out]               uint64_t* st_size,
+            [out]               uint64_t* st_atim,
+            [out]               uint64_t* st_mtim,
+            [out]               uint64_t* st_ctim
+        );
+
+        int32_t ocallWasiPathOpen(
+                                int32_t fdNative,
+                                int32_t lookupFlags,
+            [in, size=pathLen]  char* path,
+                                int32_t pathLen,
+                                int32_t openFlags,
+                                int64_t rightsBase,
+                                int64_t rightsInheriting,
+                                int32_t fdFlags,
+            [out]               int32_t* fdWasm
+        );
+
+        int32_t ocallWasiPathReadlink(
+                                    int32_t fd,
+            [in, size=pathLen]      char* path,
+                                    int32_t pathLen,
+            [in, out, size=bufLen]  char* buf,
+                                    int32_t bufLen,
+            [out]                   int32_t* resBytesUsed
+        );
+
+        int32_t ocallWasiPathRename(
+                                    int32_t oldFd,
+            [in, size=oldPathLen]   char* oldPath,
+                                    int32_t oldPathLen,
+                                    int32_t newFd,
+            [in, size=newPathLen]   char* newPath,
+                                    int32_t newPathLen
+        );
+
+        int32_t ocallWasiPathUnlinkFile(
+                                int32_t fd,
+            [in, size=pathLen]  char* path,
+                                int32_t pathLen
+        );
+
+        // ----- S3 Calls -----
+
+        int32_t ocallS3GetNumBuckets();
+
+        int32_t ocallS3ListBuckets(
+            [out, size=bufferSize]  uint8_t* buffer,
+            [out, size=bufferSize]  uint8_t* bufferLens,
+                                    int32_t bufferSize
+        );
+
+        int32_t ocallS3GetNumKeys(
+            [in, string]    const char* bucketName,
+            [in, string]    const char* prefix,
+            [out]           int32_t* totalSize,
+                            bool cache
+        );
+
+        int32_t ocallS3ListKeys(
+            [in, string]            const char* bucketName,
+            [in, string]            const char* prefix
+        ) allow(ecallCopyDataIn);
+
+        int32_t ocallS3AddKeyBytes(
+            [in, string]            const char* bucketName,
+            [in, string]            const char* keyName,
+            [in, size=keyBufferLen] uint8_t* keyBuffer,
+                                    int32_t keyBufferLen,
+                                    bool overwrite
+        );
+
+        int32_t ocallS3GetKeySize(
+            [in, string]            const char* bucketName,
+            [in, string]            const char* keyName,
+                                    bool tolerateMissing
+        );
+
+        int32_t ocallS3GetKeyBytes(
+            [in, string]            const char* bucketName,
+            [in, string]            const char* keyName,
+            [out, size=bufferSize]  uint8_t* buffer,
+                                    int32_t bufferSize,
+                                    bool tolerateMissing
+        ) allow(ecallCopyDataIn);
+
+        // ----- Attestation Calls -----
+
+        int32_t ocallAttGetQETargetInfo(
+            [out, size=bufferSize]  uint8_t* buffer,
+                                    int32_t bufferSize
+        );
+
+        int32_t ocallAttValidateQuote(
+                                    sgx_report_t report,
+            [out]                   int32_t* responseSIze
+        ) allow(ecallCopyDataIn);
+    };
+};

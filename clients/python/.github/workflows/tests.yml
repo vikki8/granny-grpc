@@ -1,0 +1,56 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  # Cancel previous running actions for the same PR
+  cancel_previous:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cancel Workflow Action
+        uses: styfle/cancel-workflow-action@0.11.0
+
+  formatting:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/faasm/cpython:0.5.0
+    steps:
+      - name: "Fetch code"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+        # We need to set the safe git directory as formatting relies on git-ls
+        # See actions/checkout#766
+      - name: "Set the GH workspace as a safe git directory"
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+      - name: "Check formatting"
+        run: ./bin/inv_wrapper.sh format-code --check
+
+  build:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    env:
+      HOST_TYPE: ci
+      REDIS_QUEUE_HOST: redis
+      REDIS_STATE_HOST: redis
+    container:
+      image: ghcr.io/faasm/cpython:0.5.0
+    services:
+      redis:
+        image: redis
+    steps:
+      - name: "Fetch code"
+        uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: "Build Python function"
+        run: ./bin/inv_wrapper.sh cpython.func
+      - name: "Check copying Python functions locally"
+        run: ./bin/inv_wrapper.sh func.upload-all --local
