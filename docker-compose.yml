@@ -175,6 +175,9 @@ services:
   dist-test-server:
     image: ${FAASM_CLI_IMAGE}
     working_dir: /build/faasm
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
     depends_on:
       - redis-queue
       - redis-state
