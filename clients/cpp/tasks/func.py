@@ -188,6 +188,7 @@ def local(ctx, clean=False, debug=False):
     user(ctx, "errors", clean, debug)
     user(ctx, "mpi", clean, debug)
     user(ctx, "s3", clean, debug)
+    user(ctx, "grpc", clean, debug) #COMP70073
 
     # Threaded users
     user(ctx, "omp", clean, debug)

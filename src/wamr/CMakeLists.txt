@@ -89,6 +89,7 @@ faasm_private_lib(wamrmodule
     env.cpp
     faasm.cpp
     filesystem.cpp
+    grpc_shim.cpp
     memory.cpp
     mpi.cpp
     native.cpp
@@ -101,6 +102,9 @@ faasm_private_lib(wamrmodule
     stubs.cpp
     timing.cpp
 )
+
+target_include_directories(wamrmodule PRIVATE
+    "${CMAKE_SOURCE_DIR}/clients/cpp/libfaasgrpc")
 
 # Disable WAMR warnings
 target_compile_options(wamrmodule PRIVATE

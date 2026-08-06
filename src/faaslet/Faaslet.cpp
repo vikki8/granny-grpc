@@ -3,6 +3,7 @@
 #include <enclave/outside/EnclaveInterface.h>
 #include <enclave/outside/system.h>
 #endif
+#include <faabric/grpc/GrpcWorldRegistry.h>
 #include <faabric/scheduler/Scheduler.h>
 #include <faabric/snapshot/SnapshotRegistry.h>
 #include <faabric/util/batch.h>
@@ -168,5 +169,7 @@ void FaasletFactory::flushHost()
     if (conf.wasmVm == "wavm") {
         wasm::WAVMWasmModule::clearCaches();
     }
+
+    faabric::grpc::getGrpcWorldRegistry().clear();
 }
 }

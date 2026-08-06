@@ -33,6 +33,7 @@ void initialiseWAMRNatives()
     doSymbolRegistration(getFaasmSignalApi);
     doSymbolRegistration(getFaasmStateApi);
     doSymbolRegistration(getFaasmStubs);
+    doSymbolRegistration(getFaasmGrpcApi); //COMP70073
 
     // Register wasi symbols
     doWasiSymbolRegistration(getFaasmWasiEnvApi);

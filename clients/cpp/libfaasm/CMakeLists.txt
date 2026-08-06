@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.8)
 project(libfaasm)
 
+# Public gRPC host API: ../libfaasgrpc/faasgrpc/grpc.h; implementation in ../libfaasgrpc/grpc.cpp.
+get_filename_component(LIBFAASGRPC_ROOT "${CMAKE_CURRENT_LIST_DIR}/../libfaasgrpc" ABSOLUTE)
+add_subdirectory("${LIBFAASGRPC_ROOT}" libfaasgrpc_build)
+
 # ------ Faasm C/C++ library ------ #
 
 set(CMAKE_CXX_STANDARD 17)
@@ -38,7 +42,7 @@ set(LIB_FILES
 if (CMAKE_SYSTEM_NAME STREQUAL "WASI")
     message(STATUS "Libfaasm WebAssembly build")
 
-    add_library(faasm STATIC ${LIB_FILES})
+    add_library(faasm STATIC ${LIB_FILES} $<TARGET_OBJECTS:faasgrpc_obj>)
     set_target_properties(faasm PROPERTIES PUBLIC_HEADER "${PUBLIC_HEADERS}")
 
     # Install in WASM sysroot
@@ -47,6 +51,11 @@ if (CMAKE_SYSTEM_NAME STREQUAL "WASI")
         ARCHIVE DESTINATION $ENV{FAASM_WASM_LIB_INSTALL_DIR}
         LIBRARY DESTINATION $ENV{FAASM_WASM_LIB_INSTALL_DIR}
         PUBLIC_HEADER DESTINATION $ENV{FAASM_WASM_HEADER_INSTALL_DIR}/faasm
+    )
+
+    install(
+        FILES ${LIBFAASGRPC_ROOT}/faasgrpc/grpc.h
+        DESTINATION $ENV{FAASM_WASM_HEADER_INSTALL_DIR}/faasgrpc
     )
 
     # Add allowed import files
@@ -59,9 +68,9 @@ else ()
     message(STATUS "Libfaasm native build")
 
     if(BUILD_SHARED_LIBS)
-        add_library(faasm SHARED ${LIB_FILES})
+        add_library(faasm SHARED ${LIB_FILES} $<TARGET_OBJECTS:faasgrpc_obj>)
     else()
-        add_library(faasm STATIC ${LIB_FILES})
+        add_library(faasm STATIC ${LIB_FILES} $<TARGET_OBJECTS:faasgrpc_obj>)
     endif()
 
     set_target_properties(faasm PROPERTIES PUBLIC_HEADER "${PUBLIC_HEADERS}")
@@ -72,6 +81,13 @@ else ()
         LIBRARY DESTINATION lib
         PUBLIC_HEADER DESTINATION include/faasm
     )
+
+    install(FILES ${LIBFAASGRPC_ROOT}/faasgrpc/grpc.h
+                  ${LIBFAASGRPC_ROOT}/faasgrpc/GrpcEnvelope.h
+            DESTINATION include/faasgrpc)
 endif ()
 
-target_include_directories(faasm PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+target_include_directories(faasm PUBLIC
+    ${CMAKE_CURRENT_LIST_DIR}
+    ${LIBFAASGRPC_ROOT}
+)

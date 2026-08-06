@@ -1,3 +1,34 @@
+x-dist-test-server-common: &dist-test-server-common
+  image: ${FAASM_CLI_IMAGE}
+  working_dir: /build/faasm
+  cap_add:
+    - NET_ADMIN
+    - NET_RAW
+  depends_on:
+    - redis-queue
+    - redis-state
+    - planner
+    - minio
+    - upload
+  environment:
+    - BOUND_TIMEOUT=60000
+    - CGROUP_MODE=off
+    - DEPLOYMENT_TYPE=${FAASM_DEPLOYMENT_TYPE:-compose}
+    - FAASM_WASM_VM=${FAASM_WASM_VM:-wamr}
+    - GLOBAL_MESSAGE_TIMEOUT=120000
+    - LD_LIBRARY_PATH=/usr/local/lib
+    - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
+    - OVERRIDE_CPU_COUNT=${FAASM_OVERRIDE_CPU_COUNT:-4}
+    - PLANNER_HOST=planner
+    - PLANNER_PORT=${PLANNER_DOCKER_PORT}
+    - REDIS_QUEUE_HOST=redis-queue
+    - REDIS_STATE_HOST=redis-state
+    - PERF_CPU_CORES=${PERF_CPU_CORES:-}
+  command: ./bin/dist_test_server
+  volumes:
+    - ./:/usr/local/code/faasm/
+    - ${FAASM_BUILD_DIR}:${FAASM_BUILD_MOUNT}
+
 services:
   redis-state:
     image: ghcr.io/faasm/redis:${FAASM_VERSION}
@@ -20,6 +51,11 @@ services:
     environment:
       - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
       - PLANNER_PORT=${PLANNER_DOCKER_PORT}
+      - PERF_LAT_P50_US=${PERF_LAT_P50_US:-800}
+      - PERF_CPU_PCT=${PERF_CPU_PCT:-50}
+      - PERF_SUSTAIN_WINDOWS=${PERF_SUSTAIN_WINDOWS:-2}
+      - PERF_COOLDOWN_MS=${PERF_COOLDOWN_MS:-3000}
+      - PERF_MAX_ATTEMPTS=${PERF_MAX_ATTEMPTS:-2}
 
   minio:
     image: ghcr.io/faasm/minio:${FAASM_VERSION}
@@ -96,6 +132,7 @@ services:
       - MAX_NET_NAMESPACES=100
       - NETNS_MODE=off
       - OVERRIDE_CPU_COUNT=${FAASM_OVERRIDE_CPU_COUNT:-8}
+      - PERF_CPU_CORES=${PERF_CPU_CORES:-}
       - PLANNER_HOST=planner
       - PLANNER_PORT=${PLANNER_DOCKER_PORT}
       - REDIS_QUEUE_HOST=redis-queue
@@ -142,6 +179,7 @@ services:
       - FAASM_WASM_VM=${FAASM_WASM_VM:-wamr}
       - LD_LIBRARY_PATH=/usr/local/lib
       - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
+      - PERF_CPU_CORES=${PERF_CPU_CORES:-}
       - PLANNER_HOST=planner
       - PLANNER_PORT=${PLANNER_DOCKER_PORT}
       - REDIS_QUEUE_HOST=redis-queue
@@ -171,36 +209,12 @@ services:
     stdin_open: true
     tty: true
 
-  # Distributed tests server
+  # Distributed tests servers (master + 2 workers)
   dist-test-server:
-    image: ${FAASM_CLI_IMAGE}
-    working_dir: /build/faasm
-    cap_add:
-      - NET_ADMIN
-      - NET_RAW
-    depends_on:
-      - redis-queue
-      - redis-state
-      - planner
-      - minio
-      - upload
-    environment:
-      - BOUND_TIMEOUT=60000
-      - CGROUP_MODE=off
-      - DEPLOYMENT_TYPE=${FAASM_DEPLOYMENT_TYPE:-compose}
-      - FAASM_WASM_VM=${FAASM_WASM_VM:-wamr}
-      - GLOBAL_MESSAGE_TIMEOUT=120000
-      - LD_LIBRARY_PATH=/usr/local/lib
-      - LOG_LEVEL=${FAASM_LOG_LEVEL:-debug}
-      - OVERRIDE_CPU_COUNT=${FAASM_OVERRIDE_CPU_COUNT:-4}
-      - PLANNER_HOST=planner
-      - PLANNER_PORT=${PLANNER_DOCKER_PORT}
-      - REDIS_QUEUE_HOST=redis-queue
-      - REDIS_STATE_HOST=redis-state
-    command: ./bin/dist_test_server
-    volumes:
-      - ./:/usr/local/code/faasm/
-      - ${FAASM_BUILD_DIR}:${FAASM_BUILD_MOUNT}
+    <<: *dist-test-server-common
+
+  dist-test-server-2:
+    <<: *dist-test-server-common
 
   # Profiling/ perf testing
   vector:

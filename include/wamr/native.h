@@ -57,6 +57,8 @@ uint32_t getFaasmFunctionsApi(NativeSymbol** nativeSymbols);
 
 uint32_t getFaasmMemoryApi(NativeSymbol** nativeSymbols);
 
+uint32_t getFaasmGrpcApi(NativeSymbol** nativeSymbols); //COMP70073
+
 uint32_t getFaasmMpiApi(NativeSymbol** nativeSymbols);
 
 uint32_t getFaasmOpenMPApi(NativeSymbol** nativeSymbols);

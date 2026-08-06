@@ -55,6 +55,15 @@ class DistTestsFixture
         return workerIp;
     }
 
+    std::string getDistTestWorker2Ip()
+    {
+        if (worker2Ip.empty()) {
+            worker2Ip =
+              faabric::util::getIPFromHostname("dist-test-server-2");
+        }
+        return worker2Ip;
+    }
+
     ~DistTestsFixture()
     {
         conf.reset();
@@ -68,7 +77,9 @@ class DistTestsFixture
     void setLocalRemoteSlots(int nLocalSlots,
                              int nRemoteSlots,
                              int nLocalUsedSlots = 0,
-                             int nRemoteUsedSlots = 0)
+                             int nRemoteUsedSlots = 0,
+                             int nRemote2Slots = 0,
+                             int nRemote2UsedSlots = 0)
     {
         auto localResources = std::make_shared<faabric::HostResources>();
         localResources->set_slots(nLocalSlots);
@@ -80,6 +91,14 @@ class DistTestsFixture
         remoteResources->set_slots(nRemoteSlots);
         remoteResources->set_usedslots(nRemoteUsedSlots);
         sch.addHostToGlobalSet(getDistTestWorkerIp(), remoteResources);
+
+        if (nRemote2Slots > 0 || nRemote2UsedSlots > 0) {
+            auto remote2Resources =
+              std::make_shared<faabric::HostResources>();
+            remote2Resources->set_slots(nRemote2Slots);
+            remote2Resources->set_usedslots(nRemote2UsedSlots);
+            sch.addHostToGlobalSet(getDistTestWorker2Ip(), remote2Resources);
+        }
     }
 
     std::shared_ptr<faabric::BatchExecuteRequestStatus> waitForBatchResults(
@@ -120,6 +139,7 @@ class DistTestsFixture
 
     std::string masterIp;
     std::string workerIp;
+    std::string worker2Ip;
 };
 
 class MpiDistTestsFixture : public DistTestsFixture

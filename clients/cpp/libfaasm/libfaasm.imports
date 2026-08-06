@@ -52,5 +52,17 @@ __faasm_s3_list_keys_with_prefix
 __faasm_s3_add_key_bytes
 __faasm_s3_get_key_bytes
 
+# COMP70073 gRPC
+__faasm_grpc_init
+__faasm_grpc_connect
+__faasm_grpc_call_unary
+__faasm_grpc_recv_request
+__faasm_grpc_send_response
+__faasm_grpc_bidi_stream_open
+__faasm_grpc_bidi_stream_recv_open
+__faasm_grpc_bidi_stream_send
+__faasm_grpc_bidi_stream_recv
+__faasm_grpc_bidi_stream_half_close
+
 # Test
 __faasm_host_interface_test

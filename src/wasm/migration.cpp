@@ -1,13 +1,17 @@
 #include <faabric/batch-scheduler/BatchScheduler.h>
 #include <faabric/batch-scheduler/SchedulingDecision.h>
 #include <faabric/executor/ExecutorContext.h>
+#include <faabric/grpc/GrpcWorld.h>
+#include <faabric/grpc/GrpcWorldRegistry.h>
 #include <faabric/mpi/MpiWorldRegistry.h>
+#include <faabric/planner/PlannerClient.h>
 #include <faabric/scheduler/FunctionCallClient.h>
 #include <faabric/scheduler/Scheduler.h>
 #include <faabric/snapshot/SnapshotClient.h>
 #include <faabric/snapshot/SnapshotRegistry.h>
 #include <faabric/util/ExecGraph.h>
 #include <faabric/util/batch.h>
+#include <faabric/util/logging.h>
 #include <faabric/util/network.h>
 #include <wasm/WasmExecutionContext.h>
 #include <wasm/migration.h>
@@ -69,8 +73,8 @@ void doMigrationPoint(int32_t entrypointFuncWasmOffset,
     }
 
     bool appMustMigrate = migration != nullptr && !appMustFreeze;
-
-    // Detect if this particular function needs to be migrated or not
+    
+    // Detect if this Granule needs to be migrated or not
     bool funcMustMigrate = false;
     std::string hostToMigrateTo = "otherHost";
     if (appMustMigrate) {
@@ -88,6 +92,51 @@ void doMigrationPoint(int32_t entrypointFuncWasmOffset,
           faabric::mpi::getMpiWorldRegistry().getWorld(call->mpiworldid());
         mpiWorld.prepareMigration(
           call->groupid(), call->mpirank(), funcMustMigrate);
+    }
+
+    if (appMustMigrate && !funcMustMigrate && call->isgrpc()) {
+        SPDLOG_INFO("[GRPC MIGRATE] MIGRATE_NOOP app {} serviceId {} stays put "
+                    "across app migration (src==dst={}): NOT entering "
+                    "migrating (rejecting) state",
+                    call->appid(),
+                    call->grpcserviceid(),
+                    migration->srchost());
+    }
+
+    // only a service with a genuinely different destination enters migration
+    if (funcMustMigrate && call->isgrpc()) {
+        auto& registry = faabric::grpc::getGrpcWorldRegistry();
+        if (registry.worldExists(call->appid(), call->grpcserviceid())) {
+            auto& grpcWorld =
+              registry.getWorld(call->appid(), call->grpcserviceid());
+
+            int32_t newEpoch = grpcWorld.getMigrationEpoch() + 1;
+            grpcWorld.preparePhase(newEpoch);
+
+            auto meta = grpcWorld.transferPhase();
+            std::string serialised;
+            if (!meta.SerializeToString(&serialised)) {
+                SPDLOG_ERROR("Failed to serialise GrpcMigrationMetadata "
+                             "for app {} serviceId {}",
+                             call->appid(),
+                             call->grpcserviceid());
+            } else {
+                std::vector<uint8_t> blob(serialised.begin(),
+                                          serialised.end());
+                try {
+                    faabric::planner::getPlannerClient()
+                      .setGrpcMigrationBlob(call->appid(),
+                                            call->grpcserviceid(),
+                                            blob);
+                } catch (const std::exception& ex) {
+                    SPDLOG_ERROR("Failed to upload migration blob: {}",
+                                 ex.what());
+                }
+            }
+
+            call->set_grpc_epoch(newEpoch);
+            call->set_dedupe_uuid(grpcWorld.getDedupeUuid());
+        }
     }
 
     // Do actual migration
@@ -132,6 +181,15 @@ void doMigrationPoint(int32_t entrypointFuncWasmOffset,
             msg.set_mpiworldid(call->mpiworldid());
             msg.set_mpiworldsize(call->mpiworldsize());
             msg.set_mpirank(call->mpirank());
+        }
+
+        // propagate gRPC identity so can intialise GrpcWorld
+        if (call->isgrpc()) {
+            msg.set_isgrpc(true);
+            msg.set_grpcserviceid(call->grpcserviceid());
+            msg.set_grpcworldsize(call->grpcworldsize());
+            msg.set_grpc_epoch(call->grpc_epoch());
+            msg.set_dedupe_uuid(call->dedupe_uuid());
         }
 
         if (call->recordexecgraph()) {

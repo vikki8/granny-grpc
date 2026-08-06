@@ -8,6 +8,8 @@
 #define HOST_IFACE_FUNC __attribute__((weak))
 #endif
 
+#include <stdint.h>
+
 // Migration entry point
 typedef void (*FaasmMigrateEntryPoint)(int);
 
@@ -155,8 +157,119 @@ void __faasm_sm_critical_local();
 HOST_IFACE_FUNC
 void __faasm_sm_critical_local_end();
 
+// gRPC host syscalls are registered under module "env" (see wamr/native.cpp).
+#if defined(__wasm__) || defined(__wasm32__)
+void __attribute__((__import_module__("env"), __import_name__("__faasm_migrate_point")))
+__faasm_migrate_point(FaasmMigrateEntryPoint f, int arg);
+
+int __attribute__((
+  __import_module__("env"), __import_name__("__faasm_grpc_init"))) __faasm_grpc_init(
+  int worldSize);
+
+int __attribute__((
+  __import_module__("env"), __import_name__("__faasm_grpc_connect"))) __faasm_grpc_connect(
+  int destServiceId);
+
+int __attribute__((__import_module__("env"),
+                   __import_name__("__faasm_grpc_call_unary"))) __faasm_grpc_call_unary(
+  int destServiceId,
+  const char* method,
+  int methodLen,
+  const uint8_t* reqData,
+  int reqLen,
+  uint8_t* respBuf,
+  int respBufLen);
+
+int __attribute__((__import_module__("env"),
+                   __import_name__("__faasm_grpc_recv_request"))) __faasm_grpc_recv_request(
+  char* methodBuf,
+  int methodBufLen,
+  uint8_t* reqBuf,
+  int reqBufLen,
+  int* callIdOut,
+  int* sourceServiceIdOut);
+
+void __attribute__((__import_module__("env"),
+                    __import_name__("__faasm_grpc_send_response"))) __faasm_grpc_send_response(
+  int callId, const uint8_t* respData, int respLen);
+
+int __attribute__((
+  __import_module__("env"),
+  __import_name__("__faasm_grpc_bidi_stream_open"))) __faasm_grpc_bidi_stream_open(
+  int destServiceId);
+
+int __attribute__((
+  __import_module__("env"),
+  __import_name__("__faasm_grpc_bidi_stream_recv_open"))) __faasm_grpc_bidi_stream_recv_open(
+  int* peerServiceIdOut);
+
+int __attribute__((
+  __import_module__("env"),
+  __import_name__("__faasm_grpc_bidi_stream_send"))) __faasm_grpc_bidi_stream_send(
+  int streamId, const uint8_t* data, int len);
+
+int __attribute__((
+  __import_module__("env"),
+  __import_name__("__faasm_grpc_bidi_stream_recv"))) __faasm_grpc_bidi_stream_recv(
+  int streamId,
+  uint8_t* buf,
+  int bufLen,
+  int64_t* seqOut,
+  int* isCloseOut);
+
+int __attribute__((
+  __import_module__("env"),
+  __import_name__("__faasm_grpc_bidi_stream_half_close"))) __faasm_grpc_bidi_stream_half_close(
+  int streamId);
+#else
 HOST_IFACE_FUNC
 void __faasm_migrate_point(FaasmMigrateEntryPoint f, int arg);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_init(int worldSize);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_connect(int destServiceId);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_call_unary(int destServiceId,
+                            const char* method,
+                            int methodLen,
+                            const uint8_t* reqData,
+                            int reqLen,
+                            uint8_t* respBuf,
+                            int respBufLen);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_recv_request(char* methodBuf,
+                              int methodBufLen,
+                              uint8_t* reqBuf,
+                              int reqBufLen,
+                              int* callIdOut,
+                              int* sourceServiceIdOut);
+
+HOST_IFACE_FUNC
+void __faasm_grpc_send_response(int callId, const uint8_t* respData, int respLen);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_bidi_stream_open(int destServiceId);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_bidi_stream_recv_open(int* peerServiceIdOut);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_bidi_stream_send(int streamId, const uint8_t* data, int len);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_bidi_stream_recv(int streamId,
+                                  uint8_t* buf,
+                                  int bufLen,
+                                  int64_t* seqOut,
+                                  int* isCloseOut);
+
+HOST_IFACE_FUNC
+int __faasm_grpc_bidi_stream_half_close(int streamId);
+#endif
 
 HOST_IFACE_FUNC
 void __faasm_host_interface_test(int testNum);

@@ -37,4 +37,6 @@ target_link_libraries(wasm PUBLIC
     faasm::conf
     faasm::storage
     faasm::threads
+    faabric::grpc
+    faabric::planner
 )
