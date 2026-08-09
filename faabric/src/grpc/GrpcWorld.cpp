@@ -656,7 +656,7 @@ faabric::GrpcMigrationMetadata GrpcWorld::transferPhase()
             protoEntry->set_seqnum(entry.seqNum);
         }
     }
-.
+
     {
         std::scoped_lock streamLock(streamsMx);
         for (const auto& [sid, cursor] : streamCursors) {
