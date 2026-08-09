@@ -76,3 +76,4 @@ add_subdirectory(mpi)
 add_subdirectory(omp)
 add_subdirectory(s3)
 add_subdirectory(threads)
+add_subdirectory(grpc) #COMP70073
