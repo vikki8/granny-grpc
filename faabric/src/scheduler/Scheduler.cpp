@@ -14,8 +14,11 @@
 #include <faabric/util/func.h>
 #include <faabric/util/locks.h>
 #include <faabric/util/logging.h>
+#include <faabric/util/perf_monitor.h>
 #include <faabric/util/snapshot.h>
 #include <faabric/util/testing.h>
+
+#include <chrono>
 
 using namespace faabric::util;
 using namespace faabric::snapshot;
@@ -468,6 +471,26 @@ Scheduler::checkForMigrationOpportunities(faabric::Message& msg,
         faabric::util::updateBatchExecAppId(req, msg.appid());
         faabric::util::updateBatchExecGroupId(req, msg.groupid());
         req->set_type(faabric::BatchExecuteRequest::MIGRATION);
+
+        auto perfSnap = faabric::util::PerfMonitor::instance().snapshot();
+        if (perfSnap.valid) {
+            auto* pm = req->mutable_perfmetrics();
+            pm->set_valid(true);
+            pm->set_p50rttus(perfSnap.p50RttUs);
+            pm->set_p99rttus(perfSnap.p99RttUs);
+            pm->set_rps(perfSnap.rps);
+            pm->set_cpupct(perfSnap.cpuPct);
+            pm->set_samplecount(perfSnap.sampleCount);
+            SPDLOG_INFO("[PERF POLICY] app {} migration point metrics: "
+                        "p50={:.0f}us p99={:.0f}us rps={:.0f} cpu={:.1f}% n={}",
+                        msg.appid(),
+                        perfSnap.p50RttUs,
+                        perfSnap.p99RttUs,
+                        perfSnap.rps,
+                        perfSnap.cpuPct,
+                        perfSnap.sampleCount);
+        }
+
         auto decision = planner::getPlannerClient().callFunctions(req);
 
         // Update the group ID if we want to migrate
@@ -477,6 +500,19 @@ Scheduler::checkForMigrationOpportunities(faabric::Message& msg,
             newGroupId = MUST_FREEZE;
         } else {
             newGroupId = decision.groupId;
+
+            const int64_t triggerTsNs =
+              std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count();
+            SPDLOG_INFO("[PERF POLICY] app {} MIGRATE_TRIGGERED send_ts_ns={} "
+                        "p50={:.0f}us p99={:.0f}us rps={:.0f} cpu={:.1f}%",
+                        msg.appid(),
+                        triggerTsNs,
+                        perfSnap.p50RttUs,
+                        perfSnap.p99RttUs,
+                        perfSnap.rps,
+                        perfSnap.cpuPct);
         }
 
         // Send the new group id to all the members of the group

@@ -148,6 +148,47 @@ message AvailableHostsResponse {
     repeated Host hosts = 1;
 }
 
+message SetGrpcEndpointRequest {
+    int32 appId = 1;
+    int32 serviceId = 2;
+    string host = 3;
+    int32 port = 4;
+}
+
+message SetGrpcEndpointResponse {
+    ResponseStatus status = 1;
+}
+
+message GetGrpcEndpointRequest {
+    int32 appId = 1;
+    int32 serviceId = 2;
+}
+
+message GetGrpcEndpointResponse {
+    ResponseStatus status = 1;
+    string endpoint = 2;
+}
+
+message SetGrpcMigrationBlobRequest {
+    int32 appId = 1;
+    int32 serviceId = 2;
+    bytes blob = 3;
+}
+
+message SetGrpcMigrationBlobResponse {
+    ResponseStatus status = 1;
+}
+
+message PopGrpcMigrationBlobRequest {
+    int32 appId = 1;
+    int32 serviceId = 2;
+}
+
+message PopGrpcMigrationBlobResponse {
+    ResponseStatus status = 1;
+    bytes blob = 2;
+}
+
 message SetEvictedVmIpsRequest {
     repeated string vmIps = 1;
 }

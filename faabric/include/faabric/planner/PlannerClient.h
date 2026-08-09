@@ -6,6 +6,7 @@
 #include <faabric/transport/MessageEndpointClient.h>
 #include <faabric/util/PeriodicBackgroundThread.h>
 
+#include <cstdint>
 #include <future>
 #include <shared_mutex>
 
@@ -97,6 +98,23 @@ class PlannerClient final : public faabric::transport::MessageEndpointClient
 
     void preloadSchedulingDecision(
       std::shared_ptr<faabric::batch_scheduler::SchedulingDecision> preloadDec);
+
+    //COMP70073
+    void setGrpcEndpoint(int32_t appId,
+                              int32_t serviceId,
+                              const std::string& host,
+                              int32_t port);
+    
+    //COMP70073
+    std::string getGrpcEndpoint(int32_t appId, int32_t serviceId);
+
+    //COMP70073 
+    void setGrpcMigrationBlob(int32_t appId,
+                              int32_t serviceId,
+                              const std::vector<uint8_t>& blob);
+
+    //COMP70073 
+    std::vector<uint8_t> popGrpcMigrationBlob(int32_t appId, int32_t serviceId);
 
   private:
     std::mutex plannerCacheMx;

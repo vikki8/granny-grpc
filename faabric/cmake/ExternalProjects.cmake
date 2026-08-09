@@ -19,7 +19,14 @@ find_package(Protobuf 6.30.1 QUIET REQUIRED)
 find_package(readerwriterqueue QUIET REQUIRED)
 find_package(spdlog QUIET REQUIRED)
 find_package(ZLIB QUIET REQUIRED)
-
+find_package(gRPC QUIET REQUIRED)
+find_program(GRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin
+    HINTS
+        "${grpc_PACKAGE_FOLDER_DEBUG}/bin"
+        "${grpc_PACKAGE_FOLDER_RELEASE}/bin"
+    REQUIRED
+)
+message(STATUS "Found grpc_cpp_plugin: ${GRPC_CPP_PLUGIN_EXECUTABLE}")
 # --------------------------------
 # Fetch content dependencies
 # --------------------------------
@@ -94,6 +101,7 @@ target_link_libraries(faabric_common_dependencies INTERFACE
     spdlog::spdlog
     Threads::Threads
     zstd::libzstd_static
+    gRPC::grpc++
 )
 target_compile_definitions(faabric_common_dependencies INTERFACE
     FMT_DEPRECATED= # Suppress warnings about use of deprecated api by spdlog

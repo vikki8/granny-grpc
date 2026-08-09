@@ -18,5 +18,9 @@ enum PlannerCalls
     GetNumMigrations = 12,
     CallBatch = 13,
     PreloadSchedulingDecision = 14,
+    SetGrpcEndpoint = 15, //COMP70073
+    GetGrpcEndpoint = 16,      //COMP70073
+    SetGrpcMigrationBlob = 17, //COMP70073 
+    PopGrpcMigrationBlob = 18, //COMP70073 
 };
 }

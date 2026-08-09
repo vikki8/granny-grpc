@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+// Not "faabric.grpc" — that becomes namespace faabric::grpc and collides with ::grpc
+package faabric.faasmgrpc;
+
+// Bidirectional streams are tunnelled over CallUnary rather than using a
+// native gRPC stream: each logical stream message is a CallUnary with a
+// __bidi_* method name plus (streamId, seqNum), so streams inherit the unary
+// path's dedupe cache, outbox replay, channel rebuild and forwarding.
+service FaasmGrpc {
+    rpc CallUnary(GrpcRequest) returns (GrpcResponse) {}
+
+    // Phase 4: invoked by the destination of a migrated rank to ask its peer
+    // to re-send any messages on a given stream whose seqNum lies in the
+    // half-open range (lastReceivedSeq, peerKnownSendSeq]. The peer responds
+    // immediately; the actual retransmissions arrive on subsequent CallUnary
+    // bidi-tunnel messages and replay through the dedupe cache.
+    rpc RetransmitStreamRange(RetransmitStreamRangeRequest)
+        returns (RetransmitStreamRangeResponse) {}
+}
+
+message GrpcRequest {
+    int32 appId = 1;
+    int32 callId = 2;
+    int32 sourceServiceId = 3;
+    int32 destServiceId = 4;
+    string method = 5;
+    bytes payload = 6;
+
+    // Phase 4: stream identity carried on every bidi-tunnel CallUnary so the
+    // receiving side can route the message to the right per-stream queue and
+    // detect / reorder gaps.
+    int64 seqNum = 7;
+    int32 streamId = 8;
+}
+
+message RetransmitStreamRangeRequest {
+    int32 appId = 1;
+    int32 streamId = 2;
+    int32 requesterServiceId = 3;
+    // Inclusive lower bound, exclusive upper bound (i.e. [from, to)).
+    int64 fromSeq = 4;
+    int64 toSeq = 5;
+}
+
+message RetransmitStreamRangeResponse {
+    int32 status = 1;
+}
+
+message GrpcResponse {
+    int32 appId = 1;
+    int32 callId = 2;
+    int32 sourceServiceId = 3;
+    int32 destServiceId = 4;
+    int32 status = 5;
+    string error = 6;
+    bytes payload = 7;
+    bool served_from_dedupe_cache = 8;
+}

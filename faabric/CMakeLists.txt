@@ -68,6 +68,12 @@ endif()
 # Global include dir
 set(FAABRIC_INCLUDE_DIR ${CMAKE_CURRENT_LIST_DIR}/include)
 
+if (EXISTS "${CMAKE_SOURCE_DIR}/clients/cpp/libfaasgrpc/faasgrpc/GrpcEnvelope.h")
+    set(FAASM_LIBFAASGRPC_INCLUDE "${CMAKE_SOURCE_DIR}/clients/cpp/libfaasgrpc")
+else ()
+    set(FAASM_LIBFAASGRPC_INCLUDE "${CMAKE_SOURCE_DIR}/../clients/cpp/libfaasgrpc")
+endif ()
+
 # Output directories
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
@@ -108,6 +114,7 @@ add_subdirectory(src/batch-scheduler)
 add_subdirectory(src/endpoint)
 add_subdirectory(src/executor)
 add_subdirectory(src/flat)
+add_subdirectory(src/grpc)
 add_subdirectory(src/mpi)
 add_subdirectory(src/planner)
 add_subdirectory(src/proto)
@@ -134,6 +141,7 @@ add_library(faabric
     $<TARGET_OBJECTS:endpoint_obj>
     $<TARGET_OBJECTS:executor_obj>
     $<TARGET_OBJECTS:flat_obj>
+    $<TARGET_OBJECTS:grpc_obj>
     $<TARGET_OBJECTS:mpi_obj>
     $<TARGET_OBJECTS:planner_obj>
     $<TARGET_OBJECTS:proto_obj>

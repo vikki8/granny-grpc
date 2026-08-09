@@ -45,6 +45,22 @@ class PlannerServer final : public faabric::transport::MessageEndpointServer
 
     std::unique_ptr<google::protobuf::Message> recvPreloadSchedulingDecision(
       std::span<const uint8_t> buffer);
+    
+    //COMP70073
+    std::unique_ptr<google::protobuf::Message> recvSetGrpcEndpoint(
+      std::span<const uint8_t> buffer);
+    
+    //COMP70073
+    std::unique_ptr<google::protobuf::Message> recvGetGrpcEndpoint(
+      std::span<const uint8_t> buffer);
+
+    //COMP70073 
+    std::unique_ptr<google::protobuf::Message> recvSetGrpcMigrationBlob(
+      std::span<const uint8_t> buffer);
+
+    //COMP70073 
+    std::unique_ptr<google::protobuf::Message> recvPopGrpcMigrationBlob(
+      std::span<const uint8_t> buffer);
 
     std::unique_ptr<google::protobuf::Message> recvCallBatch(
       std::span<const uint8_t> buffer);

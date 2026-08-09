@@ -21,6 +21,7 @@ faabric_lib(util
     logging.cpp
     memory.cpp
     network.cpp
+    PerfMonitor.cpp
     ptp.cpp
     queue.cpp
     random.cpp

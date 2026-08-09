@@ -5,6 +5,7 @@
 #include <faabric/planner/planner.pb.h>
 #include <faabric/proto/faabric.pb.h>
 
+#include <cstdint>
 #include <map>
 
 namespace faabric::planner {
@@ -29,6 +30,13 @@ struct PlannerState
     // Map holding the hosts that have registered interest in getting an app
     // result
     std::map<int, std::vector<std::string>> appResultWaiters;
+
+    // map storing gRPC endpoints using appId and rank
+    std::map<int32_t, std::map<int32_t, std::string>> grpcEndpoints;
+
+    // map storing serialised gRPC migration metadata by appId/rank.
+    std::map<int32_t, std::map<int32_t, std::vector<uint8_t>>>
+      grpcMigrationBlobs;
 
     // Map keeping track of the requests that are in-flight
     faabric::batch_scheduler::InFlightReqs inFlightReqs;

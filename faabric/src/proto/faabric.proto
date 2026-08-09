@@ -57,6 +57,18 @@ message BatchExecuteRequest {
 
     // Hint set by the user to make scale-up requests elastic
     bool elasticScaleHint = 12;
+
+    // Live performance metrics attached by the migrating app 
+    PerfMetrics perfMetrics = 13;
+}
+
+message PerfMetrics {
+    bool valid = 1;
+    double p50RttUs = 2;
+    double p99RttUs = 3;
+    double rps = 4;
+    double cpuPct = 5;
+    int32 sampleCount = 6;
 }
 
 message BatchExecuteRequestStatus {
@@ -149,6 +161,14 @@ message Message {
     // OpenMP
     bool isOmp = 39;
     int32 ompNumThreads = 40;
+
+    // gRPC
+    bool isGrpc = 41;
+    int32 grpcServiceId = 42;
+    int32 grpcWorldSize = 43;
+    int32 grpcPort = 44;
+    int32 grpc_epoch = 45;
+    string dedupe_uuid = 46;
 }
 
 // ---------------------------------------------
@@ -239,4 +259,52 @@ message PendingMigration {
     int32 groupIdx = 3;
     string srcHost = 4;
     string dstHost = 5;
+}
+
+message GrpcOutboxEntry {
+    int32 callId = 1;
+    int32 destServiceId = 2;
+    string method = 3;
+    bytes requestBytes = 4;
+    int32 migrationEpoch = 5;
+    int32 streamId = 6;
+    int64 seqNum = 7;
+}
+
+message GrpcMigrationMetadata {
+    int32 appId = 1;
+    int32 serviceId = 2;
+    int32 newEpoch = 3;
+    string dedupeUuid = 4;
+    int32 lastAllocatedCallId = 5;
+    repeated GrpcOutboxEntry outbox = 6;
+    repeated StreamCursorState streamCursors = 7;
+    repeated DedupeCacheEntry dedupeCache = 8;
+    repeated SenderEpochEntry senderEpochs = 9;
+}
+
+message DedupeCacheEntry {
+    int32 sourceServiceId = 1;
+    string dedupeUuid = 2;
+    int32 callId = 3;
+    int32 status = 4;
+    string error = 5;
+    bytes payload = 6;
+}
+
+message SenderEpochEntry {
+    int32 sourceServiceId = 1;
+    int32 knownEpoch = 2;
+    string dedupeUuid = 3;
+}
+
+message StreamCursorState {
+    int32 streamId = 1;
+    int32 peerServiceId = 2;
+    bool isClient = 3;
+    int64 sendSeqNum = 4;        
+    int64 lastAckedSeq = 5;      
+    int64 lastReceivedSeq = 6;   
+    bool halfClosedLocal = 7;    
+    bool halfClosedRemote = 8;   
 }

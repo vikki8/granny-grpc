@@ -6,6 +6,7 @@
 #include <faabric/proto/faabric.pb.h>
 #include <faabric/snapshot/SnapshotRegistry.h>
 
+#include <cstdint>
 #include <shared_mutex>
 
 namespace faabric::planner {
@@ -55,6 +56,21 @@ class Planner
 
     // Best effort host removal. Don't fail if we can't
     void removeHost(const Host& hostIn);
+
+    void setGrpcEndpoint(int32_t appId,
+                              int32_t serviceId,
+                              const std::string& host,
+                              int32_t port);
+
+    std::string getGrpcEndpoint(int32_t appId, int32_t serviceId);
+
+    // source stores a serialised GrpcMigrationMetadata blob
+    void setGrpcMigrationBlob(int32_t appId,
+                              int32_t serviceId,
+                              const std::vector<uint8_t>& blob);
+
+    // Returns the blob and atomically removes it from the store
+    std::vector<uint8_t> popGrpcMigrationBlob(int32_t appId, int32_t serviceId);
 
     // ----------
     // Request scheduling public API

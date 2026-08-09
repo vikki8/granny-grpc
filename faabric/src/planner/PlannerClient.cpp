@@ -413,6 +413,79 @@ void PlannerClient::preloadSchedulingDecision(
     syncSend(PlannerCalls::PreloadSchedulingDecision, &mappings, &response);
 }
 
+void PlannerClient::setGrpcEndpoint(int32_t appId,
+                                      int32_t serviceId,
+                                      const std::string& host,
+                                      int32_t port)
+{
+    SetGrpcEndpointRequest request;
+    request.set_appid(appId);
+    request.set_serviceid(serviceId);
+    request.set_host(host);
+    request.set_port(port);
+
+    SetGrpcEndpointResponse response;
+    syncSend(PlannerCalls::SetGrpcEndpoint, &request, &response);
+
+    if (response.status().status() != ResponseStatus_Status_OK) {
+        throw std::runtime_error("Error setting gRPC endpoint in planner");
+    }
+}
+
+std::string PlannerClient::getGrpcEndpoint(int32_t appId, int32_t serviceId)
+{
+    GetGrpcEndpointRequest request;
+    request.set_appid(appId);
+    request.set_serviceid(serviceId);
+
+    GetGrpcEndpointResponse response;
+    syncSend(PlannerCalls::GetGrpcEndpoint, &request, &response);
+
+    if (response.status().status() != ResponseStatus_Status_OK) {
+        return "";
+    }
+
+    return response.endpoint();
+}
+
+void PlannerClient::setGrpcMigrationBlob(int32_t appId,
+                                         int32_t serviceId,
+                                         const std::vector<uint8_t>& blob)
+{
+    SetGrpcMigrationBlobRequest request;
+    request.set_appid(appId);
+    request.set_serviceid(serviceId);
+    if (!blob.empty()) {
+        request.set_blob(blob.data(), blob.size());
+    }
+
+    SetGrpcMigrationBlobResponse response;
+    syncSend(PlannerCalls::SetGrpcMigrationBlob, &request, &response);
+
+    if (response.status().status() != ResponseStatus_Status_OK) {
+        throw std::runtime_error(
+          "Error setting gRPC migration blob in planner");
+    }
+}
+
+std::vector<uint8_t> PlannerClient::popGrpcMigrationBlob(int32_t appId,
+                                                        int32_t serviceId)
+{
+    PopGrpcMigrationBlobRequest request;
+    request.set_appid(appId);
+    request.set_serviceid(serviceId);
+
+    PopGrpcMigrationBlobResponse response;
+    syncSend(PlannerCalls::PopGrpcMigrationBlob, &request, &response);
+
+    if (response.status().status() != ResponseStatus_Status_OK) {
+        return {};
+    }
+
+    const std::string& blob = response.blob();
+    return std::vector<uint8_t>(blob.begin(), blob.end());
+}
+
 // -----------------------------------
 // Static setter/getters
 // -----------------------------------

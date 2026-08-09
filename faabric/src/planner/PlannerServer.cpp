@@ -67,6 +67,18 @@ std::unique_ptr<google::protobuf::Message> PlannerServer::doSyncRecv(
         case PlannerCalls::PreloadSchedulingDecision: {
             return recvPreloadSchedulingDecision(message.udata());
         }
+        case PlannerCalls::SetGrpcEndpoint: {
+            return recvSetGrpcEndpoint(message.udata());
+        }
+        case PlannerCalls::GetGrpcEndpoint: {
+            return recvGetGrpcEndpoint(message.udata());
+        }
+        case PlannerCalls::SetGrpcMigrationBlob: {
+            return recvSetGrpcMigrationBlob(message.udata());
+        }
+        case PlannerCalls::PopGrpcMigrationBlob: {
+            return recvPopGrpcMigrationBlob(message.udata());
+        }
         case PlannerCalls::CallBatch: {
             return recvCallBatch(message.udata());
         }
@@ -222,6 +234,96 @@ PlannerServer::recvPreloadSchedulingDecision(std::span<const uint8_t> buffer)
         preloadDecision));
 
     return std::make_unique<faabric::EmptyResponse>();
+}
+
+std::unique_ptr<google::protobuf::Message>
+PlannerServer::recvSetGrpcEndpoint(std::span<const uint8_t> buffer)
+{
+    PARSE_MSG(SetGrpcEndpointRequest, buffer.data(), buffer.size());
+
+    auto response = std::make_unique<SetGrpcEndpointResponse>();
+    ResponseStatus status;
+
+    try {
+        planner.setGrpcEndpoint(
+          parsedMsg.appid(), parsedMsg.serviceid(), parsedMsg.host(), parsedMsg.port());
+        status.set_status(ResponseStatus_Status_OK);
+    } catch (const std::exception& ex) {
+        SPDLOG_ERROR("Error setting gRPC endpoint: {}", ex.what());
+        status.set_status(ResponseStatus_Status_ERROR);
+    }
+
+    *response->mutable_status() = status;
+    return response;
+}
+
+std::unique_ptr<google::protobuf::Message>
+PlannerServer::recvGetGrpcEndpoint(std::span<const uint8_t> buffer)
+{
+    PARSE_MSG(GetGrpcEndpointRequest, buffer.data(), buffer.size());
+
+    auto response = std::make_unique<GetGrpcEndpointResponse>();
+    ResponseStatus status;
+
+    try {
+        std::string endpoint =
+          planner.getGrpcEndpoint(parsedMsg.appid(), parsedMsg.serviceid());
+        response->set_endpoint(endpoint);
+        status.set_status(ResponseStatus_Status_OK);
+    } catch (const std::exception& ex) {
+        SPDLOG_ERROR("Error getting gRPC endpoint: {}", ex.what());
+        status.set_status(ResponseStatus_Status_ERROR);
+    }
+
+    *response->mutable_status() = status;
+    return response;
+}
+
+std::unique_ptr<google::protobuf::Message>
+PlannerServer::recvSetGrpcMigrationBlob(std::span<const uint8_t> buffer)
+{
+    PARSE_MSG(SetGrpcMigrationBlobRequest, buffer.data(), buffer.size());
+
+    auto response = std::make_unique<SetGrpcMigrationBlobResponse>();
+    ResponseStatus status;
+
+    try {
+        const std::string& blob = parsedMsg.blob();
+        std::vector<uint8_t> bytes(blob.begin(), blob.end());
+        planner.setGrpcMigrationBlob(
+          parsedMsg.appid(), parsedMsg.serviceid(), bytes);
+        status.set_status(ResponseStatus_Status_OK);
+    } catch (const std::exception& ex) {
+        SPDLOG_ERROR("Error setting gRPC migration blob: {}", ex.what());
+        status.set_status(ResponseStatus_Status_ERROR);
+    }
+
+    *response->mutable_status() = status;
+    return response;
+}
+
+std::unique_ptr<google::protobuf::Message>
+PlannerServer::recvPopGrpcMigrationBlob(std::span<const uint8_t> buffer)
+{
+    PARSE_MSG(PopGrpcMigrationBlobRequest, buffer.data(), buffer.size());
+
+    auto response = std::make_unique<PopGrpcMigrationBlobResponse>();
+    ResponseStatus status;
+
+    try {
+        auto blob =
+          planner.popGrpcMigrationBlob(parsedMsg.appid(), parsedMsg.serviceid());
+        if (!blob.empty()) {
+            response->set_blob(blob.data(), blob.size());
+        }
+        status.set_status(ResponseStatus_Status_OK);
+    } catch (const std::exception& ex) {
+        SPDLOG_ERROR("Error popping gRPC migration blob: {}", ex.what());
+        status.set_status(ResponseStatus_Status_ERROR);
+    }
+
+    *response->mutable_status() = status;
+    return response;
 }
 
 std::unique_ptr<google::protobuf::Message> PlannerServer::recvCallBatch(

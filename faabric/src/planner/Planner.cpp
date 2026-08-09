@@ -257,6 +257,7 @@ void Planner::flushSchedulingState()
     state.inFlightReqs.clear();
     state.appResults.clear();
     state.appResultWaiters.clear();
+    state.grpcEndpoints.clear();
 
     state.numMigrations = 0;
 
@@ -378,6 +379,75 @@ void Planner::removeHost(const Host& hostIn)
         SPDLOG_DEBUG("Planner removing host {}", hostIn.ip());
         state.hostMap.erase(it);
     }
+}
+
+void Planner::setGrpcEndpoint(int32_t appId,
+                              int32_t serviceId,
+                              const std::string& host,
+                              int32_t port)
+{
+    if (host.empty() || port <= 0) {
+        throw std::runtime_error("Invalid gRPC endpoint");
+    }
+
+    std::string endpoint = fmt::format("{}:{}", host, port);
+    SPDLOG_DEBUG("Setting gRPC endpoint for app {} serviceId {} -> {}",
+                 appId,
+                 serviceId,
+                 endpoint);
+
+    faabric::util::FullLock lock(plannerMx);
+    state.grpcEndpoints[appId][serviceId] = endpoint;
+}
+
+std::string Planner::getGrpcEndpoint(int32_t appId, int32_t serviceId)
+{
+    faabric::util::SharedLock lock(plannerMx);
+
+    if (!state.grpcEndpoints.contains(appId)) {
+        return "";
+    }
+
+    auto appIt = state.grpcEndpoints.find(appId);
+    auto serviceIt = appIt->second.find(serviceId);
+    if (serviceIt == appIt->second.end()) {
+        return "";
+    }
+
+    return serviceIt->second;
+}
+
+void Planner::setGrpcMigrationBlob(int32_t appId,
+                                   int32_t serviceId,
+                                   const std::vector<uint8_t>& blob)
+{
+    SPDLOG_DEBUG("Storing gRPC migration blob for app {} serviceId {} ({} bytes)",
+                 appId,
+                 serviceId,
+                 blob.size());
+    faabric::util::FullLock lock(plannerMx);
+    state.grpcMigrationBlobs[appId][serviceId] = blob;
+}
+
+std::vector<uint8_t> Planner::popGrpcMigrationBlob(int32_t appId,
+                                                   int32_t serviceId)
+{
+    faabric::util::FullLock lock(plannerMx);
+
+    auto appIt = state.grpcMigrationBlobs.find(appId);
+    if (appIt == state.grpcMigrationBlobs.end()) {
+        return {};
+    }
+    auto serviceIt = appIt->second.find(serviceId);
+    if (serviceIt == appIt->second.end()) {
+        return {};
+    }
+    auto blob = std::move(serviceIt->second);
+    appIt->second.erase(serviceIt);
+    if (appIt->second.empty()) {
+        state.grpcMigrationBlobs.erase(appIt);
+    }
+    return blob;
 }
 
 bool Planner::isHostExpired(std::shared_ptr<Host> host, long epochTimeMs)

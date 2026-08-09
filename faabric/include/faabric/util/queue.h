@@ -34,7 +34,7 @@ class Queue
         enqueueNotifier.notify_one();
     }
 
-    void dequeueIfPresent(T* res)
+    bool tryDequeueIfPresent(T* res)
     {
         UniqueLock lock(mx);
 
@@ -44,8 +44,13 @@ class Queue
             emptyNotifier.notify_one();
 
             *res = value;
+            return true;
         }
+
+        return false;
     }
+
+    void dequeueIfPresent(T* res) { (void)tryDequeueIfPresent(res); }
 
     T dequeue(long timeoutMs = DEFAULT_QUEUE_TIMEOUT_MS)
     {
@@ -168,7 +173,9 @@ class FixedCapacityQueue
         }
     }
 
-    void dequeueIfPresent(T* res) { mq.try_dequeue(*res); }
+    bool tryDequeueIfPresent(T* res) { return mq.try_dequeue(*res); }
+
+    void dequeueIfPresent(T* res) { (void)tryDequeueIfPresent(res); }
 
     T dequeue(long timeoutMs = DEFAULT_QUEUE_TIMEOUT_MS)
     {

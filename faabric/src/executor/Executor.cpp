@@ -2,6 +2,7 @@
 #include <faabric/executor/Executor.h>
 #include <faabric/executor/ExecutorContext.h>
 #include <faabric/executor/ExecutorTask.h>
+#include <faabric/grpc/GrpcWorldRegistry.h>
 #include <faabric/mpi/MpiWorldRegistry.h>
 #include <faabric/planner/PlannerClient.h>
 #include <faabric/proto/faabric.pb.h>
@@ -476,6 +477,15 @@ void Executor::threadPoolThread(std::stop_token st, int threadPoolIdx)
 
         // Set the return value
         msg.set_returnvalue(returnValue);
+
+        if (msg.isgrpc() &&
+            faabric::grpc::getGrpcWorldRegistry().worldExists(msg.appid(),
+                                                              msg.grpcserviceid())) {
+            auto& gw = faabric::grpc::getGrpcWorldRegistry().getWorld(
+              msg.appid(), msg.grpcserviceid());
+            msg.set_grpc_epoch(gw.getMigrationEpoch());
+            msg.set_dedupe_uuid(gw.getDedupeUuid());
+        }
 
         // Decrement the task count. If we are the last thread in a batch of
         // we can either be in the main host, in which case there's still the
