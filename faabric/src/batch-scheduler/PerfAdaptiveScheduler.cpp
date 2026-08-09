@@ -222,7 +222,6 @@ PerfAdaptiveScheduler::makeSchedulingDecision(
   std::shared_ptr<BatchExecuteRequest> req)
 {
     auto decisionType = getDecisionType(inFlightReqs, req);
--
     // behave like bin packing
     if (decisionType != DecisionType::DIST_CHANGE) {
         auto decision = std::make_shared<SchedulingDecision>(req->appid(), 0);
