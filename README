@@ -1,14 +1,14 @@
 # GRANNY-gRPC setup
 
-Full guide to setup GRANNY runtime's gRPC backend
-1) install host dependencies
-2) bring up a 3-host dist-test cluster,
-3) build the runtime
-4) upload Hotel Reservation WASM
-5) run a gRPC dist test with metrics logging.
+Full guide to set up the GRANNY runtime gRPC backend:
 
-Assume the repository is checked out as `granny-grpc` (or clone it and rename /
-`cd` into your checkout).
+1. Install host dependencies
+2. Bring up a 3-host dist-test cluster
+3. Build the runtime
+4. Upload Hotel Reservation WASM
+5. Run a gRPC dist test with metrics logging
+
+Assume the repository is checked out as `granny-grpc` (or clone it, then `cd` into your checkout).
 
 ---
 
@@ -18,20 +18,23 @@ Assume the repository is checked out as `granny-grpc` (or clone it and rename /
 sudo apt-get update && sudo apt-get upgrade -y
 
 sudo apt-get install -y \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release \
-    software-properties-common \
-    git python3 python3-pip python3-venv
+  apt-transport-https \
+  ca-certificates \
+  curl \
+  gnupg \
+  lsb-release \
+  software-properties-common \
+  git \
+  python3 \
+  python3-pip \
+  python3-venv
 
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-    sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+  sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
 echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-    https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
-    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
 
 sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
@@ -65,8 +68,7 @@ source ./bin/workon.sh
 export FAASM_INI_FILE=./faasm.ini
 ```
 
-`workon.sh` creates/uses a Python venv (e.g. `venv-bm`) and puts `faasmctl` on
-your `PATH`.
+`workon.sh` creates or reuses a Python venv (for example `venv-bm`) and puts `faasmctl` on your `PATH`.
 
 ---
 
@@ -76,12 +78,13 @@ Current `faasmctl` starts only one `dist-test-server`. So we add another
 `dist-test-server-2` (3 hosts: master + 2 workers). Patch the installed package
 once after the venv exists:
 
+Find the file:
+
 ```bash
-# Path is under your venv. Python version may differ (e.g. 3.12 / 3.14)
-edit "$(python -c 'import faasmctl.tasks.deploy as d; print(d.__file__)')"
+python -c 'import faasmctl.tasks.deploy as d; print(d.__file__)'
 ```
 
-Change:
+Open that file and change:
 
 ```python
 run_compose_cmd(ini_file, "up -d dist-test-server")
@@ -93,7 +96,7 @@ to:
 run_compose_cmd(ini_file, "up -d dist-test-server dist-test-server-2")
 ```
 
-Re-apply this after any `pip install` / upgrade of `faasmctl` since it will overwrite.
+Re-apply this after any `pip install` or upgrade of `faasmctl`, because it will overwrite the patch.
 
 ---
 
@@ -103,8 +106,7 @@ Re-apply this after any `pip install` / upgrade of `faasmctl` since it will over
 faasmctl deploy.dist-tests --mount-source .
 ```
 
-This writes `faasm.ini` and starts planner, Redis, MinIO, upload, `faasm-cli`,
-and both dist-test servers.
+This writes `faasm.ini` and starts planner, Redis, MinIO, upload, `faasm-cli`, and both dist-test servers.
 
 ---
 
@@ -112,9 +114,12 @@ and both dist-test servers.
 
 ```bash
 faasmctl cli.faasm
-# inside the container:
+```
+
+Inside the container:
+
+```bash
 ./deploy/dist-test/build_internal.sh
-# exit when done
 exit
 ```
 
@@ -122,8 +127,7 @@ exit
 
 ## 7. Populate local Faasm sysroot mounts
 
-Copy the WASM toolchain (needed to compile Hotel functions) and the runtime
-root into `dev/faasm-local` on the host.
+Copy the WASM toolchain (needed to compile Hotel functions) and the runtime root into `dev/faasm-local` on the host.
 
 ### Toolchain / LLVM sysroot
 
@@ -133,16 +137,18 @@ docker run --rm \
   ghcr.io/faasm/cpp-sysroot:0.8.0 \
   bash -c 'cp -a /usr/local/faasm/toolchain /usr/local/faasm/llvm-sysroot /usr/local/faasm/native /out/ 2>/dev/null; ls -la /out'
 
-# confirm
 ls dev/faasm-local/toolchain/tools/WasiToolchain.cmake
 ```
 
 ### Runtime root
 
 ```bash
+CLI_IMAGE="$(grep FAASM_CLI_IMAGE .env 2>/dev/null | cut -d= -f2)"
+CLI_IMAGE="${CLI_IMAGE:-ghcr.io/faasm/cli:$(cat VERSION)}"
+
 docker run --rm \
   -v "$PWD/dev/faasm-local:/out" \
-  "$(grep FAASM_CLI_IMAGE .env 2>/dev/null | cut -d= -f2 || echo ghcr.io/faasm/cli:$(cat VERSION))" \
+  "$CLI_IMAGE" \
   bash -c 'cp -a /usr/local/faasm/runtime_root /out/ && ls -la /out/runtime_root | head'
 
 ls dev/faasm-local/runtime_root
@@ -157,8 +163,7 @@ faasmctl restart -s upload -s dist-test-server -s dist-test-server-2
 ./deploy/dist-test/upload.sh
 ```
 
-`upload.sh` builds the Hotel Reservation WASM (via the cpp CLI) and uploads it
-to the cluster.
+`upload.sh` builds the Hotel Reservation WASM (via the cpp CLI) and uploads it to the cluster.
 
 ---
 
@@ -172,20 +177,15 @@ faasmctl cli.faasm \
   2>&1 | tee grpc_metrics_out/hotel_raw.log
 ```
 
-Other useful filters (Catch2 tags):
+Other useful Catch2 filters:
 
 ```bash
-# Compaction / migrate search or profile
 faasmctl cli.faasm --cmd "/build/faasm/bin/dist_tests '[hotel-migrate-search]'"
 faasmctl cli.faasm --cmd "/build/faasm/bin/dist_tests '[hotel-migrate-profile]'"
-
-# All hotel tests
 faasmctl cli.faasm --cmd "/build/faasm/bin/dist_tests '[hotel]'"
 ```
 
-Perf-adaptive thresholds for the planner are set in `.env` (e.g.
-`PERF_LAT_P50_US`, `PERF_CPU_PCT`, `PERF_SUSTAIN_WINDOWS`, `PERF_COOLDOWN_MS`).
-Restart the planner (or the full cluster) after changing them.
+Perf-adaptive thresholds for the planner are set in `.env` (for example `PERF_LAT_P50_US`, `PERF_CPU_PCT`, `PERF_SUSTAIN_WINDOWS`, `PERF_COOLDOWN_MS`). Restart the planner or the full cluster after changing them.
 
 ---
 
@@ -195,7 +195,7 @@ Restart the planner (or the full cluster) after changing them.
 |------|---------|
 | Env | `source ./bin/workon.sh && export FAASM_INI_FILE=./faasm.ini` |
 | Deploy | `faasmctl deploy.dist-tests --mount-source .` |
-| Build | `faasmctl cli.faasm` -> `./deploy/dist-test/build_internal.sh` |
+| Build | `faasmctl cli.faasm` then `./deploy/dist-test/build_internal.sh` |
 | Upload | `faasmctl restart -s upload -s dist-test-server -s dist-test-server-2 && ./deploy/dist-test/upload.sh` |
 | Test | `faasmctl cli.faasm --cmd "/build/faasm/bin/dist_tests '[hotel-perf-adaptive]'"` |
 | Tear down | `faasmctl delete` |
