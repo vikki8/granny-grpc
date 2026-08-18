@@ -302,9 +302,8 @@ message StreamCursorState {
     int32 streamId = 1;
     int32 peerServiceId = 2;
     bool isClient = 3;
-    int64 sendSeqNum = 4;        
-    int64 lastAckedSeq = 5;      
-    int64 lastReceivedSeq = 6;   
-    bool halfClosedLocal = 7;    
-    bool halfClosedRemote = 8;   
+    int64 sendSeqNum = 4;             
+    int64 lastReceivedSeq = 5;   
+    bool halfClosedLocal = 6;    
+    bool halfClosedRemote = 7;   
 }

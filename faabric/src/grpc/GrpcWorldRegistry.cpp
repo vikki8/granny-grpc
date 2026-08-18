@@ -58,8 +58,7 @@ GrpcWorld& GrpcWorldRegistry::getOrInitialiseWorld(faabric::Message& msg)
 
     std::scoped_lock lock(mx);
     if (!worldMap.contains(worldKey)) {
-        auto world =
-          std::make_shared<GrpcWorld>(msg.appid(), serviceId, worldSize);
+        auto world = std::make_shared<GrpcWorld>(msg.appid(), serviceId);
 
         bool restored = false;
         try {

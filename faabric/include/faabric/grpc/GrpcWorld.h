@@ -102,8 +102,7 @@ struct StreamCursor
     int32_t streamId = 0;
     int32_t peerServiceId = -1;
     bool isClient = false;
-    int64_t sendSeqNum = 1;     
-    int64_t lastAckedSeq = 0;
+    int64_t sendSeqNum = 1;
     int64_t lastReceivedSeq = 0; 
     bool halfClosedLocal = false;
     bool halfClosedRemote = false;
@@ -128,7 +127,7 @@ struct StreamOpenNotification
 class GrpcWorld
 {
   public:
-    GrpcWorld(int32_t appIdIn, int32_t serviceIdIn, int32_t worldSizeIn);
+    GrpcWorld(int32_t appIdIn, int32_t serviceIdIn);
 
     ~GrpcWorld();
 

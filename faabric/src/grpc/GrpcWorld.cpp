@@ -185,13 +185,11 @@ void startHostUtilSampler()
 }
 
 // Lifecycle & utilities
-GrpcWorld::GrpcWorld(int32_t appIdIn, int32_t serviceIdIn, int32_t worldSizeIn)
+GrpcWorld::GrpcWorld(int32_t appIdIn, int32_t serviceIdIn)
   : appId(appIdIn)
   , serviceId(serviceIdIn)
   , thisHost(faabric::util::getSystemConfig().endpointHost)
-{
-    (void)worldSizeIn;
-}
+{}
 
 GrpcWorld::~GrpcWorld()
 {
@@ -640,7 +638,6 @@ faabric::GrpcMigrationMetadata GrpcWorld::transferPhase()
             sc->set_peerserviceid(cursor.peerServiceId);
             sc->set_isclient(cursor.isClient);
             sc->set_sendseqnum(cursor.sendSeqNum);
-            sc->set_lastackedseq(cursor.lastAckedSeq);
             sc->set_lastreceivedseq(cursor.lastReceivedSeq);
             sc->set_halfclosedlocal(cursor.halfClosedLocal);
             sc->set_halfclosedremote(cursor.halfClosedRemote);
@@ -768,7 +765,6 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
             restored.peerServiceId = sc.peerserviceid();
             restored.isClient = sc.isclient();
             restored.sendSeqNum = sc.sendseqnum();
-            restored.lastAckedSeq = sc.lastackedseq();
             restored.lastReceivedSeq = sc.lastreceivedseq();
             restored.halfClosedLocal = sc.halfclosedlocal();
             restored.halfClosedRemote = sc.halfclosedremote();
@@ -826,15 +822,15 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
                 continue;
             }
             if (cursor.isClient) {
-                // Only the receiving side requests retransmits. The client
+                // Only the receiving side requests retransmits; the client
                 // side survives via the outbox replay + unary retry path.
                 SPDLOG_INFO(
                   "[GRPC RETRANSMIT] app {} serviceId {} stream {} to peer serviceId "
                   "{} skipped: migrating side is CLIENT "
-                  "(sendSeqNum={} lastAckedSeq={}); outbox replay + client "
+                  "(sendSeqNum={}); outbox replay + client "
                   "retry path handles gaps",
                   appId, serviceId, cursor.streamId, cursor.peerServiceId,
-                  cursor.sendSeqNum, cursor.lastAckedSeq);
+                  cursor.sendSeqNum);
                 continue;
             }
             const int64_t fromSeq = cursor.lastReceivedSeq + 1;
@@ -1509,15 +1505,6 @@ void GrpcWorld::bidiStreamSend(int32_t streamId,
     }
 
     callUnary(destServiceId, BIDI_SEND_METHOD, data, streamId, seqNum);
-
-    {
-        std::scoped_lock lock(streamsMx);
-        auto it = streamCursors.find(streamId);
-        if (it != streamCursors.end()) {
-            it->second.lastAckedSeq =
-              std::max(it->second.lastAckedSeq, seqNum);
-        }
-    }
 }
 
 std::vector<uint8_t> GrpcWorld::bidiStreamRecv(int32_t streamId,
