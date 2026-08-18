@@ -1,5 +1,5 @@
 faabric_lib(grpc
-    GrpcServiceImpl.cpp
+    GrpcService.cpp
     GrpcWorld.cpp
     GrpcWorldRegistry.cpp
 )

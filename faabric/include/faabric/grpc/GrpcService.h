@@ -76,8 +76,6 @@ class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
     // Install a one-hop forward entry so inbound calls are bounced to new endpoint
     void installForward(const std::string& newEndpoint);
 
-    bool hasActiveForward();
-
     void snapshotMigrationState(faabric::GrpcMigrationMetadata& meta);
 
     void restoreMigrationState(const faabric::GrpcMigrationMetadata& meta);

@@ -50,7 +50,7 @@ constexpr int GRPC_HOST_UTIL_SAMPLE_MS = 200;
 
 void startHostUtilSampler();
 
-class GrpcServiceImpl;
+class GrpcService;
 
 struct UnaryRequest
 {
@@ -80,9 +80,9 @@ struct OutboxEntry
 
 // Bidi streams are tunnelled over the existing unary CallUnary RPC. Each
 // logical stream message becomes a CallUnary call with these 3 special method name
-constexpr const char* BIDI_OPEN_METHOD = "__bidi_open__";
-constexpr const char* BIDI_SEND_METHOD = "__bidi_send__";
-constexpr const char* BIDI_CLOSE_METHOD = "__bidi_close__";
+constexpr const char* BIDI_OPEN_METHOD = "bidi_open";
+constexpr const char* BIDI_SEND_METHOD = "bidi_send";
+constexpr const char* BIDI_CLOSE_METHOD = "bidi_close";
 
 inline bool isBidiMethod(const std::string& method)
 {
@@ -219,7 +219,6 @@ class GrpcWorld
 
     int32_t appId;
     int32_t serviceId;
-    int32_t worldSize;
     std::string thisHost;
     int32_t listenPort = 0;
 
@@ -227,7 +226,7 @@ class GrpcWorld
     int32_t migrationEpoch = 0;
 
     std::unique_ptr<::grpc::Server> server;
-    std::unique_ptr<GrpcServiceImpl> serviceImpl;
+    std::unique_ptr<GrpcService> serviceImpl;
 
     std::map<int, std::shared_ptr<::grpc::Channel>> channelCache;
     std::mutex channelCacheMx;
@@ -258,17 +257,6 @@ class GrpcWorld
                                                      int64_t toSeq);
 
     bool replayOutboxEntry(const OutboxEntry& entry);
-
-    struct WorldMetrics
-    {
-        std::size_t pendingRequestsSize = 0;
-        std::size_t pendingResponsesSize = 0;
-        bool forwardActive = false;
-    };
-    WorldMetrics snapshotMetrics();
-
-    void installForwardForTest(const std::string& newEndpoint);
-    bool hasActiveForward();
 
   private:
 

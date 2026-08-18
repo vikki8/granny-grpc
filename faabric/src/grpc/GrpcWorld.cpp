@@ -1,6 +1,6 @@
 #include <faabric/grpc/GrpcWorld.h>
 
-#include <faabric/grpc/GrpcServiceImpl.h>
+#include <faabric/grpc/GrpcService.h>
 #include <faabric/grpc/GrpcWorldRegistry.h>
 
 #include <faabric/planner/PlannerClient.h>
@@ -188,9 +188,10 @@ void startHostUtilSampler()
 GrpcWorld::GrpcWorld(int32_t appIdIn, int32_t serviceIdIn, int32_t worldSizeIn)
   : appId(appIdIn)
   , serviceId(serviceIdIn)
-  , worldSize(worldSizeIn)
   , thisHost(faabric::util::getSystemConfig().endpointHost)
-{}
+{
+    (void)worldSizeIn;
+}
 
 GrpcWorld::~GrpcWorld()
 {
@@ -223,14 +224,14 @@ void GrpcWorld::create()
           boost::uuids::to_string(boost::uuids::random_generator()());
     }
 
-    serviceImpl = std::make_unique<GrpcServiceImpl>(*this);
+    service = std::make_unique<GrpcService>(*this);
 
     ::grpc::ServerBuilder builder;
     int selectedPort = 0;
     builder.AddListeningPort("0.0.0.0:0",
                              ::grpc::InsecureServerCredentials(),
                              &selectedPort);
-    builder.RegisterService(serviceImpl.get());
+    builder.RegisterService(service.get());
 
     server = builder.BuildAndStart();
     if (server == nullptr || selectedPort <= 0) {
@@ -284,7 +285,7 @@ bool GrpcWorld::destroy()
                 appId,
                 serviceId);
     server.reset();
-    serviceImpl.reset();
+    service.reset();
 
     std::size_t channelsDropped = 0;
     {
@@ -463,32 +464,6 @@ std::shared_ptr<::grpc::Channel> GrpcWorld::getOrCreateChannel(int32_t destServi
                   CHANNEL_TOTAL_DEADLINE_MS,
                   missedEndpointAttempts,
                   failedConnectAttempts));
-}
-
-GrpcWorld::WorldMetrics GrpcWorld::snapshotMetrics()
-{
-    WorldMetrics m;
-    m.pendingRequestsSize = pendingRequestsSize.load(std::memory_order_relaxed);
-    {
-        std::scoped_lock lock(pendingResponsesMx);
-        m.pendingResponsesSize = pendingResponses.size();
-    }
-    m.forwardActive = serviceImpl && serviceImpl->hasActiveForward();
-    return m;
-}
-
-void GrpcWorld::installForwardForTest(const std::string& newEndpoint)
-{
-    if (!serviceImpl) {
-        throw std::runtime_error(
-          "installForwardForTest: GrpcWorld has no service (not created)");
-    }
-    serviceImpl->installForward(newEndpoint);
-}
-
-bool GrpcWorld::hasActiveForward()
-{
-    return serviceImpl && serviceImpl->hasActiveForward();
 }
 
 int32_t GrpcWorld::allocateCallId()
@@ -672,8 +647,8 @@ faabric::GrpcMigrationMetadata GrpcWorld::transferPhase()
         }
     }
 
-    if (serviceImpl) {
-        serviceImpl->snapshotMigrationState(meta);
+    if (service) {
+        service->snapshotMigrationState(meta);
     }
 
     // Measured snapshot footprint
@@ -808,8 +783,8 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
     create();
     migratingOut.store(false);
 
-    if (serviceImpl) {
-        serviceImpl->restoreMigrationState(meta);
+    if (service) {
+        service->restoreMigrationState(meta);
     }
 
     SPDLOG_INFO("[GRPC MIGRATE] COMMIT complete: app {} serviceId {} now serving "
@@ -1276,7 +1251,7 @@ std::vector<uint8_t> GrpcWorld::callUnary(int32_t destServiceId,
   faabric::faasmgrpc::GrpcResponse* response)
 {
     // Optimisation 1: in-process delivery into THIS world's service handler.
-    GrpcServiceImpl* impl = serviceImpl.get();
+    GrpcService* impl = service.get();
     if (impl == nullptr || migratingOut.load()) {
         return { ::grpc::StatusCode::UNAVAILABLE,
                  fmt::format("{}: local world not ready for delivery",

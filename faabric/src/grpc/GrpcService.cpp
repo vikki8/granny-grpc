@@ -1,4 +1,4 @@
-#include <faabric/grpc/GrpcServiceImpl.h>
+#include <faabric/grpc/GrpcService.h>
 
 #include <faabric/planner/PlannerClient.h>
 #include <faabric/proto/faabric.pb.h>
@@ -865,20 +865,6 @@ void GrpcServiceImpl::emitForwardExpiredLocked(const ForwardEntry& entry)
       entry.forwardedCalls,
       entry.uniqueCallIds.size());
     emitForwardSummaryLocked(entry);
-}
-
-bool GrpcServiceImpl::hasActiveForward()
-{
-    std::scoped_lock lock(forwardMx);
-    if (!forwardEntry.has_value()) {
-        return false;
-    }
-    if (std::chrono::steady_clock::now() > forwardEntry->expiresAt) {
-        emitForwardExpiredLocked(*forwardEntry);
-        forwardEntry.reset();
-        return false;
-    }
-    return true;
 }
 
 bool GrpcServiceImpl::shouldProbePlannerLocked()
