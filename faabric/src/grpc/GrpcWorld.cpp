@@ -45,6 +45,7 @@ inline int64_t steadyNowNs()
       .count();
 }
 
+
 inline double effectiveCpuCores()
 {
     const char* env = std::getenv("PERF_CPU_CORES");
@@ -167,11 +168,11 @@ class HostUtilSampler
     }
 
     std::atomic<bool> stop{ false };
-    std::thread worker; 
+    std::thread worker;
 };
-#endif 
+#endif // __linux__
 
-} 
+} // namespace
 
 void startHostUtilSampler()
 {
@@ -215,7 +216,7 @@ void GrpcWorld::create()
     // begin per-process CPU/memory utilisation sampling as soon as gRPC activity exists.
     startHostUtilSampler();
 
-    // Preserve a pre-restored UUID (commit Phase) so the world remains the
+    // Preserve a pre-restored UUID (commitPhase) so the world remains the
     // same logical GrpcWorld across migration.
     if (dedupeUUID.empty()) {
         dedupeUUID =
@@ -240,7 +241,7 @@ void GrpcWorld::create()
     faabric::planner::getPlannerClient().setGrpcEndpoint(
       appId, serviceId, thisHost, listenPort);
 
-    // Optimisation 1: the handler is now live, so a co-located service may
+    // Optimisation 1: the handler is now live, so a co-located peer may
     // deliver to us in-process.
     serviceReady.store(true);
 
@@ -548,6 +549,12 @@ void GrpcWorld::preparePhase(int32_t newEpoch)
         }
     }
 
+    // Phase 3 gap fix: any non-stream unary RPC whose promise is still alive
+    // (WASM has not called sendResponse) would otherwise block the grpc
+    // server thread for up to 30s post-migration. Abort them so the calling
+    // client sees UNAVAILABLE, retries via planner, and re-issues the call
+    // against the freshly-restored destination (whose dedupe cache either
+    // has the reply from the pre-migration snapshot or admits a fresh run).
     size_t abortedUnaryCalls = 0;
     size_t drainedQueuedRequests = 0;
     {
@@ -568,6 +575,7 @@ void GrpcWorld::preparePhase(int32_t newEpoch)
                 // Promise already satisfied — ignore.
             }
         }
+
         long queued = pendingRequests.size();
         for (long i = 0; i < queued; i++) {
             UnaryRequest discard;
@@ -774,7 +782,7 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
         }
     }
 
-    // Start a fresh server on this host and register the new endpoint with the
+    // Start a fresh server on this host; register the new endpoint with the
     // planner, overwriting the old one so callers re-resolve to us.
     create();
     migratingOut.store(false);
@@ -808,7 +816,6 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
               "nothing to request",
               appId, serviceId);
         }
-  
         std::vector<int32_t> deferredStreamIds;
 
         for (const auto& [sid, cursor] : snapshot) {
@@ -860,7 +867,7 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
                     deferredThreads_.emplace_back(
                       [this,
                        streamIds = std::move(deferredStreamIds),
-                       delayMs = RETRANSMIT_RETRY_DELAY_MS]() {
+                       delayMs = RETRANSMIT_RETRY_DELAY_MS]() {            
                           {
                               std::unique_lock<std::mutex> lk(deferredMx_);
                               deferredCv_.wait_for(
@@ -1035,7 +1042,6 @@ std::vector<uint8_t> GrpcWorld::callUnary(int32_t destServiceId,
         std::chrono::steady_clock::now() - buildT0)
         .count();
 
-
     constexpr int maxGenuineAttempts = 5; 
     constexpr int backoffBaseMs = 50;
     constexpr int maxBackoffMs = 500;
@@ -1108,7 +1114,7 @@ std::vector<uint8_t> GrpcWorld::callUnary(int32_t destServiceId,
         // toggle is off, migrationRedirect is always false, so migration
         // UNAVAILABLE falls through to the genuine-failure back-off path 
         const bool migrationRedirect =
-          GRPC_REDIRECT_AWARE_RETRY_ENABLED &&
+          GRPC_FAILURE_AWARE_RETRY_ENABLED &&
           code == ::grpc::StatusCode::UNAVAILABLE &&
           status.error_message().find(GRPC_MIGRATION_REDIRECT_MARKER) !=
             std::string::npos;
@@ -1181,7 +1187,9 @@ std::vector<uint8_t> GrpcWorld::callUnary(int32_t destServiceId,
                         static_cast<int>(code), appId, serviceId);
             std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
         }
-        // Drop any cached channel so the next gRPC attempt re-resolves the endpoint via the planner
+        // Drop any cached channel so the next gRPC attempt re-resolves the
+        // endpoint via the planner. The fast path re-checks eligibility 
+        // independently at the top of the loop.
         {
             std::scoped_lock lock(channelCacheMx);
             channelCache.erase(destServiceId);
@@ -1383,7 +1391,7 @@ void GrpcWorld::registerInboundStream(int32_t streamId, int32_t peerServiceId)
             cursor.isClient = false;
             streamCursors[streamId] = cursor;
         } else {
-            // Already known (restored via migration). Just update peer.
+            // Already known (e.g. restored via migration). Just update peer.
             cursorIt->second.peerServiceId = peerServiceId;
         }
         if (!streamInboundQueues.contains(streamId)) {

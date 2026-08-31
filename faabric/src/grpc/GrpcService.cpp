@@ -21,7 +21,7 @@ using faabric::faasmgrpc::GrpcResponse;
 namespace {
 inline std::string migrationRejectMsg(const std::string& detail)
 {
-    if (GRPC_REDIRECT_AWARE_RETRY_ENABLED) {
+    if (GRPC_FAILURE_AWARE_RETRY_ENABLED) {
         return fmt::format("{}: {}", GRPC_MIGRATION_REDIRECT_MARKER, detail);
     }
     return detail;
@@ -29,7 +29,7 @@ inline std::string migrationRejectMsg(const std::string& detail)
 
 inline const char* migrationReasonTag()
 {
-    return GRPC_REDIRECT_AWARE_RETRY_ENABLED ? GRPC_MIGRATION_REDIRECT_MARKER
+    return GRPC_FAILURE_AWARE_RETRY_ENABLED ? GRPC_MIGRATION_REDIRECT_MARKER
                                              : "redirect-disabled";
 }
 } 
@@ -70,14 +70,14 @@ static const char* statusCodeName(::grpc::StatusCode code)
     }
 }
 
-GrpcServiceImpl::GrpcServiceImpl(GrpcWorld& worldIn)
+GrpcService::GrpcService(GrpcWorld& worldIn)
   : world(worldIn)
 {
     forwardExpiryThread =
-      std::thread(&GrpcServiceImpl::forwardExpiryLoop, this);
+      std::thread(&GrpcService::forwardExpiryLoop, this);
 }
 
-GrpcServiceImpl::~GrpcServiceImpl()
+GrpcService::~GrpcService()
 {
     forwardExpiryStop.store(true, std::memory_order_release);
     forwardExpiryCv.notify_all();
@@ -93,12 +93,12 @@ GrpcServiceImpl::~GrpcServiceImpl()
     }
     emitStatusSummary();
 }
-std::size_t GrpcServiceImpl::dedupeCacheSize() const
+std::size_t GrpcService::dedupeCacheSize() const
 {
     return dedupeCache.size();
 }
 
-void GrpcServiceImpl::fillResponse(GrpcResponse* response,
+void GrpcService::fillResponse(GrpcResponse* response,
                                    const GrpcRequest* request,
                                    int32_t callId,
                                    int32_t status,
@@ -120,7 +120,7 @@ void GrpcServiceImpl::fillResponse(GrpcResponse* response,
     response->set_served_from_dedupe_cache(servedFromCache);
 }
 
-void GrpcServiceImpl::recordInboundStatus(::grpc::StatusCode code)
+void GrpcService::recordInboundStatus(::grpc::StatusCode code)
 {
     auto idx = static_cast<std::size_t>(code);
     if (idx >= NUM_STATUS_BUCKETS) {
@@ -129,7 +129,7 @@ void GrpcServiceImpl::recordInboundStatus(::grpc::StatusCode code)
     inboundStatusCounts[idx].fetch_add(1, std::memory_order_relaxed);
 }
 
-void GrpcServiceImpl::recordForwardStatus(::grpc::StatusCode code)
+void GrpcService::recordForwardStatus(::grpc::StatusCode code)
 {
     auto idx = static_cast<std::size_t>(code);
     if (idx >= NUM_STATUS_BUCKETS) {
@@ -138,7 +138,7 @@ void GrpcServiceImpl::recordForwardStatus(::grpc::StatusCode code)
     forwardStatusCounts[idx].fetch_add(1, std::memory_order_relaxed);
 }
 
-void GrpcServiceImpl::emitStatusSummary()
+void GrpcService::emitStatusSummary()
 {
     auto render = [](const std::array<std::atomic<uint64_t>,
                                       NUM_STATUS_BUCKETS>& counts) {
@@ -190,7 +190,7 @@ void GrpcServiceImpl::emitStatusSummary()
 }
 
 // Migration orchestration
-void GrpcServiceImpl::snapshotMigrationState(
+void GrpcService::snapshotMigrationState(
   faabric::GrpcMigrationMetadata& meta)
 {
     std::scoped_lock lock(rpcMx);
@@ -230,7 +230,7 @@ void GrpcServiceImpl::snapshotMigrationState(
       dedupeEvictions);
 }
 
-void GrpcServiceImpl::restoreMigrationState(
+void GrpcService::restoreMigrationState(
   const faabric::GrpcMigrationMetadata& meta)
 {
     std::scoped_lock lock(rpcMx);
@@ -264,7 +264,7 @@ void GrpcServiceImpl::restoreMigrationState(
 }
 
 // Unary communication
-std::size_t GrpcServiceImpl::evictDedupeIfOverfullLocked()
+std::size_t GrpcService::evictDedupeIfOverfullLocked()
 {
     std::size_t evicted = 0;
     while (dedupeCache.size() > DEDUPE_CACHE_MAX_ENTRIES &&
@@ -286,7 +286,7 @@ std::size_t GrpcServiceImpl::evictDedupeIfOverfullLocked()
     return evicted;
 }
 
-std::size_t GrpcServiceImpl::evictSenderEpochIfOverfullLocked()
+std::size_t GrpcService::evictSenderEpochIfOverfullLocked()
 {
     std::size_t evicted = 0;
     while (knownEpochPerSender.size() > SENDER_EPOCH_MAX_ENTRIES &&
@@ -309,7 +309,7 @@ std::size_t GrpcServiceImpl::evictSenderEpochIfOverfullLocked()
     return evicted;
 }
 
-::grpc::Status GrpcServiceImpl::CallUnary(::grpc::ServerContext* context,
+::grpc::Status GrpcService::CallUnary(::grpc::ServerContext* context,
                                           const GrpcRequest* request,
                                           GrpcResponse* response)
 {
@@ -326,7 +326,7 @@ std::size_t GrpcServiceImpl::evictSenderEpochIfOverfullLocked()
     return handleUnaryRequest(request, *envOpt, response, /*viaFastPath=*/false);
 }
 
-::grpc::Status GrpcServiceImpl::handleUnaryRequest(
+::grpc::Status GrpcService::handleUnaryRequest(
   const GrpcRequest* request,
   const faasgrpc::GrpcEnvelope& env,
   GrpcResponse* response,
@@ -560,7 +560,7 @@ std::size_t GrpcServiceImpl::evictSenderEpochIfOverfullLocked()
     if (method == BIDI_OPEN_METHOD) {
         world.registerInboundStream(request->streamid(),
                                     request->sourceserviceid());
-        // Inline OK response. no WASM-side ack required.
+        // Inline OK response; no WASM-side ack required.
         UnaryResponse imm = {
             .callId = request->callid(),
             .status = 0,
@@ -748,7 +748,7 @@ std::size_t GrpcServiceImpl::evictSenderEpochIfOverfullLocked()
 }
 
 // Retransmission & recovery
-::grpc::Status GrpcServiceImpl::RetransmitStreamRange(
+::grpc::Status GrpcService::RetransmitStreamRange(
   ::grpc::ServerContext* context,
   const faabric::faasmgrpc::RetransmitStreamRangeRequest* request,
   faabric::faasmgrpc::RetransmitStreamRangeResponse* response)
@@ -780,7 +780,7 @@ std::size_t GrpcServiceImpl::evictSenderEpochIfOverfullLocked()
 }
 
 // Forwarding proxy (grace window)
-void GrpcServiceImpl::installForward(const std::string& newEndpoint)
+void GrpcService::installForward(const std::string& newEndpoint)
 {
     {
         std::scoped_lock lock(forwardMx);
@@ -805,7 +805,7 @@ void GrpcServiceImpl::installForward(const std::string& newEndpoint)
     forwardExpiryCv.notify_all();
 }
 
-bool GrpcServiceImpl::lookupForward(std::string* out, int32_t callId)
+bool GrpcService::lookupForward(std::string* out, int32_t callId)
 {
     std::scoped_lock lock(forwardMx);
     if (!forwardEntry.has_value()) {
@@ -828,7 +828,7 @@ bool GrpcServiceImpl::lookupForward(std::string* out, int32_t callId)
     return true;
 }
 
-void GrpcServiceImpl::forwardExpiryLoop()
+void GrpcService::forwardExpiryLoop()
 {
     std::unique_lock<std::mutex> lk(forwardMx);
     while (!forwardExpiryStop.load(std::memory_order_acquire)) {
@@ -849,7 +849,7 @@ void GrpcServiceImpl::forwardExpiryLoop()
     }
 }
 
-void GrpcServiceImpl::emitForwardExpiredLocked(const ForwardEntry& entry)
+void GrpcService::emitForwardExpiredLocked(const ForwardEntry& entry)
 {
     forwardRetired = true;
     forwardRetiredEndpoint = entry.newEndpoint;
@@ -867,7 +867,7 @@ void GrpcServiceImpl::emitForwardExpiredLocked(const ForwardEntry& entry)
     emitForwardSummaryLocked(entry);
 }
 
-bool GrpcServiceImpl::shouldProbePlannerLocked()
+bool GrpcService::shouldProbePlannerLocked()
 {
     const auto now = std::chrono::steady_clock::now();
     if (lastPlannerProbeAt.time_since_epoch().count() == 0 ||
@@ -881,7 +881,7 @@ bool GrpcServiceImpl::shouldProbePlannerLocked()
     return false;
 }
 
-void GrpcServiceImpl::emitForwardSummaryLocked(const ForwardEntry& entry)
+void GrpcService::emitForwardSummaryLocked(const ForwardEntry& entry)
 {
     if (entry.forwardedCalls == 0) {
         return;

@@ -17,6 +17,9 @@
 #include <thread>
 #include <vector>
 
+// Forward-declare the generated protobuf message types so the fast-path
+// handler can take them by reference without pulling the heavyweight
+// faasm_grpc.grpc.pb.h into this header (kept lean on purpose).
 namespace faabric::faasmgrpc {
 class GrpcRequest;
 class GrpcResponse;
@@ -36,14 +39,12 @@ constexpr int CHANNEL_TOTAL_DEADLINE_MS = 30000;
 
 constexpr int MAX_FORWARD_HOPS = 2;
 
-// ---------------------------------------------------------------------------
 // Optimisation 1: co-located fast path.
 constexpr bool GRPC_FAST_PATH_ENABLED = true;
 
 // Optimisation 2: failure-aware retry.
-constexpr bool GRPC_REDIRECT_AWARE_RETRY_ENABLED = true;
+constexpr bool GRPC_FAILURE_AWARE_RETRY_ENABLED = true;
 constexpr const char* GRPC_MIGRATION_REDIRECT_MARKER = "grpc-faasm-migrating";
-
 
 constexpr bool GRPC_HOST_UTIL_ENABLED = true;
 constexpr int GRPC_HOST_UTIL_SAMPLE_MS = 200;
@@ -102,11 +103,12 @@ struct StreamCursor
     int32_t streamId = 0;
     int32_t peerServiceId = -1;
     bool isClient = false;
-    int64_t sendSeqNum = 1;
+    int64_t sendSeqNum = 1;     
     int64_t lastReceivedSeq = 0; 
     bool halfClosedLocal = false;
     bool halfClosedRemote = false;
 };
+
 
 struct StreamInboundItem
 {
@@ -114,10 +116,10 @@ struct StreamInboundItem
     int64_t seqNum = 0;
     std::vector<uint8_t> payload;
     bool isClose = false;  
-    int32_t callId = 0;    
+    int32_t callId = 0;     
 };
 
-// Notification of a freshly opened inbound stream. 
+// Notification of a freshly opened inbound stream.
 struct StreamOpenNotification
 {
     int32_t streamId = 0;
@@ -172,16 +174,12 @@ class GrpcWorld
 
     bool isMigrating() const { return migratingOut.load(); }
 
-
     int32_t openBidiStream(int32_t destServiceId);
 
-    //* Block until an inbound stream-open notification arrives
     int32_t recvBidiStreamOpen(int32_t* peerServiceIdOut, int timeoutMs = 60000);
 
-    // Send data on the stream as the next seqNum. Blocks until the peer has delivered to WASM  
     void bidiStreamSend(int32_t streamId, const std::vector<uint8_t>& data);
 
-    // Block until the next message arrives on streamId
     std::vector<uint8_t> bidiStreamRecv(int32_t streamId,
                                         int64_t* seqOut,
                                         bool* isCloseOut,
@@ -197,9 +195,9 @@ class GrpcWorld
       std::vector<uint8_t> payload,
       int32_t callId,
       bool isClose);
-
-    // co-located fast path.
-    bool localDeliveryReady() const
+    
+      // co-located fast path.
+      bool localDeliveryReady() const
     {
         return serviceReady.load() && !migratingOut.load();
     }
@@ -225,7 +223,7 @@ class GrpcWorld
     int32_t migrationEpoch = 0;
 
     std::unique_ptr<::grpc::Server> server;
-    std::unique_ptr<GrpcService> serviceImpl;
+    std::unique_ptr<GrpcService> service;
 
     std::map<int, std::shared_ptr<::grpc::Channel>> channelCache;
     std::mutex channelCacheMx;

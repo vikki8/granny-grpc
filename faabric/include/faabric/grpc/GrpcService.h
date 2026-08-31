@@ -51,12 +51,12 @@ struct ForwardEntry
     std::set<int32_t> uniqueCallIds;
 };
 
-class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
+class GrpcService final : public faabric::faasmgrpc::FaasmGrpc::Service
 {
   public:
-    explicit GrpcServiceImpl(GrpcWorld& worldIn);
+    explicit GrpcService(GrpcWorld& worldIn);
 
-    ~GrpcServiceImpl();
+    ~GrpcService();
 
     ::grpc::Status CallUnary(::grpc::ServerContext* context,
                              const faabric::faasmgrpc::GrpcRequest* request,
@@ -73,7 +73,6 @@ class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
       const faabric::faasmgrpc::RetransmitStreamRangeRequest* request,
       faabric::faasmgrpc::RetransmitStreamRangeResponse* response) override;
 
-    // Install a one-hop forward entry so inbound calls are bounced to new endpoint
     void installForward(const std::string& newEndpoint);
 
     void snapshotMigrationState(faabric::GrpcMigrationMetadata& meta);
@@ -83,7 +82,6 @@ class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
     std::size_t dedupeCacheSize() const;
 
   private:
-
     void fillResponse(faabric::faasmgrpc::GrpcResponse* response,
                       const faabric::faasmgrpc::GrpcRequest* request,
                       int32_t callId,
@@ -91,7 +89,6 @@ class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
                       const std::string& error,
                       const std::vector<uint8_t>& payload,
                       bool servedFromCache) const;
-
 
     bool lookupForward(std::string* out, int32_t callId = -1);
 
@@ -111,21 +108,16 @@ class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
     GrpcWorld& world;
 
     std::mutex rpcMx;
-
     std::map<SenderEpochKey, int32_t> knownEpochPerSender;
     std::deque<SenderEpochKey> senderEpochInsertOrder;
     std::size_t senderEpochEvictions = 0;
 
     std::map<DedupeKey, CachedUnaryResponse> dedupeCache;
-
     std::deque<DedupeKey> dedupeInsertOrder;
-
     std::size_t dedupeEvictions = 0;
 
     std::mutex forwardMx;
-
     std::optional<ForwardEntry> forwardEntry;
-
     bool forwardRetired = false;
     std::string forwardRetiredEndpoint;
     std::chrono::steady_clock::time_point lastPlannerProbeAt{};
@@ -136,7 +128,6 @@ class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
     std::condition_variable forwardExpiryCv;
     std::atomic<bool> forwardExpiryStop{ false };
     void forwardExpiryLoop();
-
     void emitForwardExpiredLocked(const ForwardEntry& entry);
 
     static constexpr std::size_t NUM_STATUS_BUCKETS = 17;
@@ -144,4 +135,3 @@ class GrpcServiceImpl final : public faabric::faasmgrpc::FaasmGrpc::Service
     std::array<std::atomic<uint64_t>, NUM_STATUS_BUCKETS> forwardStatusCounts{};
 };
 }
-
