@@ -1,4 +1,5 @@
 // binary codec for the hotel-workload messages.
+// COMP70073
 
 #pragma once
 

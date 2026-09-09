@@ -1,3 +1,5 @@
+// COMP70073
+
 #include <faabric/batch-scheduler/PerfAdaptiveScheduler.h>
 #include <faabric/batch-scheduler/SchedulingDecision.h>
 #include <faabric/util/batch.h>
@@ -73,6 +75,7 @@ static std::shared_ptr<SchedulingDecision> minimiseNumOfMigrations(
 
     assert(newDecision->hosts.size() == oldDecision->hosts.size());
 
+    // First, try to keep each service on the host it currently occupies
     for (int i = 0; i < oldDecision->hosts.size(); i++) {
         auto oldHost = oldDecision->hosts.at(i);
 
@@ -88,6 +91,7 @@ static std::shared_ptr<SchedulingDecision> minimiseNumOfMigrations(
         }
     }
 
+    // Then, allocate the services that must move to the remaining target hosts
     for (int i = 0; i < oldDecision->hosts.size(); i++) {
         if (decision->nFunctions <= i || decision->hosts.at(i).empty()) {
             auto nextHost = nextHostWithSlots();
@@ -259,6 +263,7 @@ PerfAdaptiveScheduler::makeSchedulingDecision(
     auto oldDecision = inFlightReqs.at(appId).second;
     const int nFunctions = static_cast<int>(oldDecision->hosts.size());
 
+    // Without metrics we cannot make a metric-driven decision
     if (!req->has_perfmetrics() || !req->perfmetrics().valid()) {
         SPDLOG_DEBUG("[PERF POLICY] app {} migration point without metrics; "
                      "MIGRATE_SKIP",
@@ -320,6 +325,7 @@ PerfAdaptiveScheduler::makeSchedulingDecision(
         }
     }
 
+    // Cooldown elapsed: judge whether the previous migration actually helped before considering another.
     if (st.pendingEval) {
         int& failCount = (st.lastDirection == Direction::ScaleOut)
                            ? st.failScaleOut
@@ -387,6 +393,7 @@ PerfAdaptiveScheduler::makeSchedulingDecision(
         return std::make_shared<SchedulingDecision>(DO_NOT_MIGRATE_DECISION);
     }
 
+    // Sustained latency problem: a single CPU threshold picks the direction
     const Direction direction =
       (cpu < cpuThreshPct) ? Direction::ScaleIn : Direction::ScaleOut;
 

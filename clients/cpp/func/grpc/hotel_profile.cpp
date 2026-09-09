@@ -1,7 +1,8 @@
 // Service 2 of the three-service hotel pipeline. Implements the "profile" service:
 // serviceId 0 opens a single long-lived bidi stream to this serviceId and, for each
-// hotel ID in a search result, sends a ProfileRequest and receives a
-// ProfileResponse back.
+// hotel ID in a search result, sends a ProfileRequest and receives a ProfileResponse back
+// COMP70073
+
 
 #include "hotel_codec.h"
 #include "hotel_profile_data.h"

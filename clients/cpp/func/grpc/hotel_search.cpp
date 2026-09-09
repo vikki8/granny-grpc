@@ -2,6 +2,7 @@
 // receives a unary `nearby` request (lat, lon, radiusKm) from serviceId 0 and
 // returns the IDs of all hotels within the given radius, computed via
 // haversine distance over an embedded geo index.
+//COMP70073
 
 #include "hotel_codec.h"
 #include "hotel_geo_data.h"

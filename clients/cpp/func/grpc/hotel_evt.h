@@ -1,5 +1,5 @@
 // Shared structured stderr events for all three hotel services.
-
+// COMP70073
 
 #pragma once
 

@@ -1,4 +1,5 @@
 // Full hotel records used by hotel_profile (service 2).
+// COMP70073
 #pragma once
 #include <cstdint>
 #include <cstddef>

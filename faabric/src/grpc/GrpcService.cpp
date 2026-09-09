@@ -1,3 +1,5 @@
+//COMP70073
+
 #include <faabric/grpc/GrpcService.h>
 
 #include <faabric/planner/PlannerClient.h>
@@ -313,6 +315,9 @@ std::size_t GrpcService::evictSenderEpochIfOverfullLocked()
                                           const GrpcRequest* request,
                                           GrpcResponse* response)
 {
+    // The gRPC entrypoint differs from the co-located fast path only in where
+    // the envelope comes from: over the wire it rides in request metadata.
+    // Once extracted, both paths run the identical handleUnaryRequest body.
     auto envOpt = faasgrpc::extractEnvelopeFromServerContext(context);
     if (!envOpt) {
         recordInboundStatus(::grpc::StatusCode::INVALID_ARGUMENT);
@@ -381,6 +386,7 @@ std::size_t GrpcService::evictSenderEpochIfOverfullLocked()
     }
 
     // install a forward entry if this world is in migratingOut
+    // We rate-limit the planner probe 
     if (env.forwardHops == 0 && world.isMigrating()) {
         std::string forwardProbe;
         bool needProbe = false;
@@ -409,6 +415,8 @@ std::size_t GrpcService::evictSenderEpochIfOverfullLocked()
         }
     }
 
+    // fail for original callers (forwardHops == 0) when this server is 
+    // migrating out but the destination has not advertised itself.
     std::string forwardEndpoint;
     if (env.forwardHops == 0 && world.isMigrating()) {
         bool hasForward = false;
@@ -434,6 +442,7 @@ std::size_t GrpcService::evictSenderEpochIfOverfullLocked()
                   env.callId,
                   request->sourceserviceid(),
                   retiredEndpoint);
+                  // Optimisation 2: a retired forward is still a migration redirect
                 return { ::grpc::StatusCode::UNAVAILABLE,
                          migrationRejectMsg("forward retired; retry via planner") };
             }
@@ -446,11 +455,13 @@ std::size_t GrpcService::evictSenderEpochIfOverfullLocked()
                         migrationReasonTag(),
                         env.callId,
                         request->sourceserviceid());
+            // Optimisation 2: tag this UNAVAILABLE as a migration redirect so the client
             return { ::grpc::StatusCode::UNAVAILABLE,
                      migrationRejectMsg("serviceId migrating; retry via planner") };
         }
     }
 
+    // hop-limit guard
     if (env.forwardHops >= MAX_FORWARD_HOPS) {
         recordInboundStatus(::grpc::StatusCode::FAILED_PRECONDITION);
         SPDLOG_WARN("[GRPC STATUS] app {} serviceId {} CallUnary FAILED_PRECONDITION "
@@ -664,6 +675,8 @@ std::size_t GrpcService::evictSenderEpochIfOverfullLocked()
     try {
         unaryResponse = responseFuture.get();
     } catch (const std::exception& ex) {
+        // Promise resolved with an exception (e.g. preparePhase aborted
+        // pending stream items). Tell the client to retry via planner o
         recordInboundStatus(::grpc::StatusCode::UNAVAILABLE);
         SPDLOG_INFO("[GRPC STATUS] app {} serviceId {} CallUnary UNAVAILABLE "
                     "(promise rejected) callId {} sourceServiceId {} msg={}",
@@ -787,6 +800,8 @@ void GrpcService::installForward(const std::string& newEndpoint)
         if (forwardEntry.has_value()) {
             emitForwardSummaryLocked(*forwardEntry);
         }
+        // Fresh install resets the retired marker (we allow exactly one grace
+        // window unless the service is torn down and restarted).
         forwardRetired = false;
         forwardRetiredEndpoint.clear();
         ForwardEntry entry;
@@ -851,6 +866,8 @@ void GrpcService::forwardExpiryLoop()
 
 void GrpcService::emitForwardExpiredLocked(const ForwardEntry& entry)
 {
+    // Mark the forward as retired so we do not reinstall a new grace window
+    // while this world remains in migrating-out state.
     forwardRetired = true;
     forwardRetiredEndpoint = entry.newEndpoint;
 

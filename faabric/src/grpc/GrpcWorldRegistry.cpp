@@ -1,3 +1,5 @@
+//COMP70073
+
 #include <faabric/grpc/GrpcWorldRegistry.h>
 
 #include <faabric/planner/PlannerClient.h>
@@ -60,6 +62,8 @@ GrpcWorld& GrpcWorldRegistry::getOrInitialiseWorld(faabric::Message& msg)
     if (!worldMap.contains(worldKey)) {
         auto world = std::make_shared<GrpcWorld>(msg.appid(), serviceId);
 
+        // If the planner has a pending migration blob for this (appId, serviceId),
+        // consume it and Commit Phase instead of starting a fresh world.
         bool restored = false;
         try {
             auto blob = faabric::planner::getPlannerClient()

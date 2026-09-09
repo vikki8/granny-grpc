@@ -1,3 +1,5 @@
+//COMP70073
+
 #include <faabric/grpc/GrpcWorld.h>
 
 #include <faabric/grpc/GrpcService.h>
@@ -45,7 +47,7 @@ inline int64_t steadyNowNs()
       .count();
 }
 
-
+// Effective vCPU budget used as the CPU-utilisation denominator.
 inline double effectiveCpuCores()
 {
     const char* env = std::getenv("PERF_CPU_CORES");
@@ -70,6 +72,7 @@ inline int64_t processCpuNs()
     return static_cast<int64_t>(ts.tv_sec) * 1000000000LL + ts.tv_nsec;
 }
 
+// Resident set size of this process in bytes, from /proc/self/statm.
 inline long processRssBytes()
 {
     FILE* fp = std::fopen("/proc/self/statm", "r");
@@ -170,9 +173,9 @@ class HostUtilSampler
     std::atomic<bool> stop{ false };
     std::thread worker;
 };
-#endif // __linux__
+#endif 
 
-} // namespace
+} 
 
 void startHostUtilSampler()
 {
@@ -312,6 +315,9 @@ bool GrpcWorld::destroy()
     pendingRequestsSize.store(0, std::memory_order_relaxed);
     listenPort = 0;
 
+    // drop stream state. Pending stream items still in the queues are abandoned
+    // The sender will retry to the new endpoint and the destination will
+    // surface them via the restored cursors.
     std::size_t cursorsDropped = 0;
     std::size_t queuesDropped = 0;
     std::size_t preOpenDropped = 0;
@@ -343,6 +349,7 @@ bool GrpcWorld::destroy()
                 outboxBackpressureTimeouts.load(std::memory_order_relaxed));
 
     {
+        // Signal and join any deferred retransmit retry threads spawned by Commit Phase
         std::vector<std::thread> toJoin;
         {
             std::scoped_lock dlk(deferredMx_);
@@ -413,6 +420,8 @@ std::shared_ptr<::grpc::Channel> GrpcWorld::getOrCreateChannel(int32_t destServi
           std::chrono::milliseconds(connectTimeoutMs));
         if (!connected) {
             failedConnectAttempts++;
+            // First failure is INFO (tells the reader retries are happening)
+            // subsequent failures are DEBUG to avoid spam.
             if (failedConnectAttempts == 1) {
                 SPDLOG_INFO(
                   "[GRPC CHANNEL] app {} serviceId {} -> serviceId {} connect attempt "
@@ -472,6 +481,7 @@ int32_t GrpcWorld::allocateCallId()
 
 int32_t GrpcWorld::allocateStreamId()
 {
+    // Encode serviceId into the high byte to avoid collisions across initiators
     int32_t local = streamIdCounter.fetch_add(1) + 1;
     return ((serviceId & 0xFF) << 24) | (local & 0x00FFFFFF);
 }
@@ -549,7 +559,7 @@ void GrpcWorld::preparePhase(int32_t newEpoch)
         }
     }
 
-    // Phase 3 gap fix: any non-stream unary RPC whose promise is still alive
+    // Fix: any non-stream unary RPC whose promise is still alive
     // (WASM has not called sendResponse) would otherwise block the grpc
     // server thread for up to 30s post-migration. Abort them so the calling
     // client sees UNAVAILABLE, retries via planner, and re-issues the call
@@ -576,6 +586,7 @@ void GrpcWorld::preparePhase(int32_t newEpoch)
             }
         }
 
+        // Drain any UnaryRequest objects that no WASM thread dequeued yet.
         long queued = pendingRequests.size();
         for (long i = 0; i < queued; i++) {
             UnaryRequest discard;
@@ -638,6 +649,8 @@ faabric::GrpcMigrationMetadata GrpcWorld::transferPhase()
         }
     }
 
+    
+    // snapshot every active stream cursor.
     {
         std::scoped_lock streamLock(streamsMx);
         for (const auto& [sid, cursor] : streamCursors) {
@@ -761,7 +774,7 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
             outbox[entry.callid()] = std::move(restored);
         }
     }
-
+    // restore per-stream cursors and recreate empty inbound queues
     {
         std::scoped_lock streamLock(streamsMx);
         streamCursors.clear();
@@ -799,11 +812,18 @@ void GrpcWorld::commitPhase(const faabric::GrpcMigrationMetadata& meta)
                 listenPort);
     const auto metricCommitServeEnd = std::chrono::steady_clock::now();
 
+    // ensure pre-existing peer channels are forced to be re-opened
+    // after migration so that a sender that survived the migration window
+    // re-resolves us via the planner.
     {
         std::scoped_lock cacheLock(channelCacheMx);
         channelCache.clear();
     }
 
+    // ask each peer to re-send any messages that the previous host
+    // did not surface to WASM, so the destination's lastReceivedSeq advances
+    // past any gaps. The retransmits will arrive as fresh bidi_send unary calls
+    // the dedupe cache (fresh on this server) admits them.
     {
         std::map<int32_t, StreamCursor> snapshot;
         {

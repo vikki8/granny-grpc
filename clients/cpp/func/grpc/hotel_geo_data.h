@@ -1,4 +1,5 @@
 // Compact geo index used by hotel_search (service 1).
+// COMP70073
 #pragma once
 #include <cstdint>
 #include <cstddef>

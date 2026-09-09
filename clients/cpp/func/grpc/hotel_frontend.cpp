@@ -1,6 +1,7 @@
 // Service 0 of the three-service hotel pipeline. Drives the workload by issuing
 // a sequence of SearchRequests to serviceId 1 (search), then for each returned
 // hotel ID issuing a ProfileRequest over a long-lived bidi stream to serviceId 2
+// COMP70073
 
 #include "hotel_codec.h"
 #include "hotel_evt.h"
