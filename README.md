@@ -167,7 +167,7 @@ faasmctl restart -s upload -s dist-test-server -s dist-test-server-2
 
 ---
 
-## 9. Run a gRPC dist test (example: hotel perf-adaptive)
+## 9. Run a gRPC dist test (example: hotel perf-adaptive) and append logs from all workers
 
 ```bash
 mkdir -p grpc_metrics_out
@@ -175,6 +175,10 @@ mkdir -p grpc_metrics_out
 faasmctl cli.faasm \
   --cmd "/build/faasm/bin/dist_tests '[hotel-perf-adaptive]'" \
   2>&1 | tee grpc_metrics_out/hotel_raw.log
+
+faasmctl logs -s dist-test-server >> grpc_metrics_out/hotel_raw.log
+faasmctl logs -s dist-test-server-2 >> grpc_metrics_out/hotel_raw.log
+faasmctl logs -s planner >> grpc_metrics_out/hotel_raw.log
 ```
 
 Other useful Catch2 filters:
@@ -186,6 +190,14 @@ faasmctl cli.faasm --cmd "/build/faasm/bin/dist_tests '[hotel]'"
 ```
 
 Perf-adaptive thresholds for the planner are set in `.env` (for example `PERF_LAT_P50_US`, `PERF_CPU_PCT`, `PERF_SUSTAIN_WINDOWS`, `PERF_COOLDOWN_MS`). Restart the planner or the full cluster after changing them.
+
+---
+
+## 10. Run latency & throughput graph plotting
+
+```bash
+python3 scripts/grpc_metrics/plot_publication_eval.py --log-dir grpc_metrics_out/logs --out-dir grpc_metrics_out/publication
+```
 
 ---
 
