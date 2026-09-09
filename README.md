@@ -196,7 +196,9 @@ Perf-adaptive thresholds for the planner are set in `.env` (for example `PERF_LA
 ## 10. Run latency & throughput graph plotting
 
 ```bash
-python3 scripts/grpc_metrics/plot_publication_eval.py --log-dir grpc_metrics_out/logs --out-dir grpc_metrics_out/publication
+python3 scripts/plot_perf_adaptive.py \
+  --log grpc_metrics_out/hotel_raw.log \
+  --out-dir grpc_metrics_out/perf_adaptive
 ```
 
 ---
